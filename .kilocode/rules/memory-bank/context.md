@@ -1,5 +1,11 @@
 # Context
 
+## 2026-05-09 - Fixed Historical Processing Stuck Due to Empty Data Loading
+- **Root cause**: `fetchHistoricalOHLCV()` in `preset-coordination-engine.ts` returned empty array (placeholder implementation)
+- **Impact**: Historical data sync always reported "no data" leading to infinite processing loops
+- **Fix**: Connected `loadHistoricalMarketData` from `market-data-loader.ts` which generates synthetic data or fetches from exchange
+- **Result**: Historical processing now loads real or synthetic data for proper coordination calculations
+
 ## 2026-05-09 - Fixed Live Positions Not Closing When Exchange Position Disappears
 - **Root cause**: `syncWithExchange()` in `live-stage.ts` did not detect when positions with `executedQuantity > 0` no longer existed on the exchange (SL/TP hit, manual close, liquidation)
 - **Previous behavior**: Positions stayed open until the next `reconcileLivePositions` cron cycle (up to 1 minute delay)

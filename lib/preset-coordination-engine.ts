@@ -8,6 +8,7 @@
 import { sql, execute, getDatabaseType } from "@/lib/db"
 import type { PresetType, PresetConfigurationSet, PresetCoordinationResult } from "@/lib/types-preset-coordination"
 import { calculateIndicators, type IndicatorConfig } from "./indicators"
+import { loadHistoricalMarketData } from "./market-data-loader"
 // Plain `crypto` — Edge build aliases this to `false` via `next.config.mjs`.
 import * as crypto from "crypto"
 import { PresetPseudoPositionManager } from "./preset-pseudo-position-manager"
@@ -1000,9 +1001,7 @@ export class PresetCoordinationEngine {
   }
 
   private async fetchHistoricalOHLCV(symbol: string, startTime: Date, endTime: Date): Promise<any[]> {
-    // Fetch historical OHLCV data from exchange
-    // This is a placeholder - actual implementation depends on exchange API
-    return []
+    return loadHistoricalMarketData(symbol, startTime, endTime, "1h")
   }
 
   private async storeHistoricalData(symbol: string, data: any[]): Promise<void> {
