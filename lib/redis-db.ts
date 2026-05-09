@@ -2274,10 +2274,11 @@ export async function getEnabledConnections(): Promise<any[]> {
 
 export async function getAssignedAndEnabledConnections(): Promise<any[]> {
   const allConnections = await getAllConnections()
-  return allConnections.filter(conn => 
-    (isEnabledFlag(conn.is_active_inserted) || isEnabledFlag(conn.is_assigned)) &&
-    (isEnabledFlag(conn.is_enabled) || isEnabledFlag(conn.enabled))
-  )
+  return allConnections.filter(conn => {
+    const isAssigned = isEnabledFlag(conn.is_active_inserted) || isEnabledFlag(conn.is_assigned)
+    const isDashboardEnabled = isEnabledFlag(conn.is_enabled_dashboard) || isEnabledFlag(conn.is_active)
+    return isAssigned && isDashboardEnabled
+  })
 }
 
 export async function getConnectionsByExchange(exchange: string): Promise<any[]> {

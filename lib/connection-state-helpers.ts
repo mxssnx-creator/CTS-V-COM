@@ -82,8 +82,8 @@ export function isConnectionReadyForEngine(conn: any): boolean {
   const toBoolean = (val: any) => val === true || val === "1" || val === "true"
   
   return (
-    toBoolean(conn.is_assigned) &&
-    toBoolean(conn.is_enabled_dashboard) &&
+    (toBoolean(conn.is_assigned) || toBoolean(conn.is_active_inserted)) &&
+    (toBoolean(conn.is_enabled_dashboard) || toBoolean(conn.is_active)) &&
     !!conn.exchange &&
     !!conn.api_type
   )

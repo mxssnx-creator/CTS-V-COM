@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { ensureDefaultExchangesExist } from "@/lib/default-exchanges-seeder"
 import { initRedis, getAllConnections } from "@/lib/redis-db"
+import { initProgressManagerSystem } from "@/lib/engine-progress-manager"
 
 function toBoolean(value: unknown): boolean {
   return value === true || value === "1" || value === "true"
@@ -12,6 +13,10 @@ export async function GET() {
   try {
     await initRedis()
     console.log("[v0] /api/init: Redis initialized")
+
+    // Seed progress manager registry from Redis to restore in-memory state on hot reload
+    await initProgressManagerSystem()
+    console.log("[v0] /api/init: Progress manager system seeded")
 
     const seedResult = await ensureDefaultExchangesExist()
     if (!seedResult.success) {

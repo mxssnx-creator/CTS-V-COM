@@ -32,7 +32,7 @@ export function isConnectionAssignedToMain(connection: any): boolean {
 }
 
 export function isConnectionDashboardEnabled(connection: any): boolean {
-  return isTruthyFlag(connection?.is_enabled_dashboard)
+  return isTruthyFlag(connection?.is_enabled_dashboard) || isTruthyFlag(connection?.is_active)
 }
 
 // ========== COMBINED STATE CHECKS ==========

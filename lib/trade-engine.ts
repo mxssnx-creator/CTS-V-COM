@@ -481,8 +481,14 @@ export class GlobalTradeEngineCoordinator {
       for (const connection of connections) {
         if (!runningIds.has(connection.id)) {
           try {
-            const hasCredentials = (connection.api_key || connection.apiKey) && (connection.api_secret || connection.apiSecret)
-            if (!hasCredentials) {
+            // Allow testnet, demo, and predefined connections without strict credentials
+            const apiKey = connection.api_key || connection.apiKey || ""
+            const apiSecret = connection.api_secret || connection.apiSecret || ""
+            const hasCredentials = apiKey.length >= 5 && apiSecret.length >= 5
+            const isTestnet = connection.is_testnet === true || connection.is_testnet === "true" || connection.is_testnet === "1" || connection.demo_mode === true
+            const isPredefined = connection.is_predefined === true || connection.is_predefined === "true" || connection.is_predefined === "1"
+            
+            if (!hasCredentials && !isTestnet && !isPredefined) {
               console.log(`[v0] [Coordinator] SKIP: ${connection.name} - no credentials`)
               await logProgressionEvent(connection.id, "engine_skip", "warning", "Engine start skipped - missing credentials", {
                 connectionId: connection.id,
@@ -573,8 +579,14 @@ export class GlobalTradeEngineCoordinator {
       for (const connection of enabledConnections) {
         if (!runningIds.has(connection.id)) {
           try {
-            const hasCredentials = (connection.api_key || connection.apiKey) && (connection.api_secret || connection.apiSecret)
-            if (!hasCredentials) {
+            // Allow testnet, demo, and predefined connections without strict credentials
+            const apiKey = connection.api_key || connection.apiKey || ""
+            const apiSecret = connection.api_secret || connection.apiSecret || ""
+            const hasCredentials = apiKey.length >= 5 && apiSecret.length >= 5
+            const isTestnet = connection.is_testnet === true || connection.is_testnet === "true" || connection.is_testnet === "1" || connection.demo_mode === true
+            const isPredefined = connection.is_predefined === true || connection.is_predefined === "true" || connection.is_predefined === "1"
+            
+            if (!hasCredentials && !isTestnet && !isPredefined) {
               console.log(`[v0] [Coordinator] SKIP: ${connection.name} - no credentials`)
               await logProgressionEvent(connection.id, "engine_skip", "warning", "Engine start skipped - missing credentials", {
                 connectionId: connection.id,

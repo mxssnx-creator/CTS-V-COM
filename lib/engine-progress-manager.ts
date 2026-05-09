@@ -498,6 +498,37 @@ export class EngineProgressManager {
 
 const managerRegistry = new Map<string, EngineProgressManager>()
 
+/**
+ * Seed the manager registry from Redis on cold/hot start.
+ * This ensures the in-memory Map stays in sync with persisted state,
+ * preventing "progress manager not found" errors on hot reloads.
+ */
+export async function seedManagerRegistryFromRedis(): Promise<void> {
+  try {
+    const client = getRedisClient()
+    // Find all engine_progress keys
+    const keys = await client.keys("engine_progress:*")
+    for (const key of keys) {
+      const connectionId = key.replace("engine_progress:", "")
+      if (!managerRegistry.has(connectionId)) {
+        const manager = new EngineProgressManager(connectionId)
+        await manager.loadState()
+        managerRegistry.set(connectionId, manager)
+      }
+    }
+  } catch (e) {
+    // Non-fatal: registry will be populated on demand
+    console.warn("[ProgressManager] Could not seed registry from Redis:", e)
+  }
+}
+
+/**
+ * Initialize the progress manager system. Call on app startup.
+ */
+export async function initProgressManagerSystem(): Promise<void> {
+  await seedManagerRegistryFromRedis()
+}
+
 export function getProgressManager(connectionId: string): EngineProgressManager {
   if (!managerRegistry.has(connectionId)) {
     managerRegistry.set(connectionId, new EngineProgressManager(connectionId))
