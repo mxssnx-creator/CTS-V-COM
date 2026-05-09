@@ -129,22 +129,13 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverMemoryConfig: {
-    // Increased memory allocation for serverless functions
-    maxOldSpaceSize: 6144,
-  },
   experimental: {
     serverActions: {
       allowedOrigins: ["*"],
     },
-    // Serverless optimization
-    bypassDynamicImportForPreload: true,
-    optimizeCss: true,
   },
   output: 'standalone',
-  // Ensure serverless compatibility
   trailingSlash: false,
-  // Remove restrictions - allow all origins for serverless
   async headers() {
     return [
       {
