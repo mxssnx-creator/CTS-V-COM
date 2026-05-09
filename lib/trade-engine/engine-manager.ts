@@ -879,7 +879,11 @@ export class TradeEngineManager {
       const prehistoricEnd = new Date()
       const prehistoricStart = new Date(prehistoricEnd.getTime() - rangeHours * 60 * 60 * 1000)
 
-      // Store canonical range metadata so dashboard can display timeframe details
+      // Store canonical range metadata so dashboard can display timeframe details.
+      // IMPORTANT: Include symbols_total so the quick-start's value (user-selected
+      // symbol count) is preserved instead of overwritten. Without this, the hash
+      // write here would clear the symbols_total, causing the dashboard to show
+      // "1/1" even when the user selected multiple symbols.
       const redisClient = getRedisClient()
       await redisClient.hset(`prehistoric:${this.connectionId}`, {
         range_start: prehistoricStart.toISOString(),
@@ -890,6 +894,7 @@ export class TradeEngineManager {
         is_complete: "0",
         started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        symbols_total: String(symbols.length),
       })
 
       // Initialize config sets and process prehistoric data through them

@@ -341,9 +341,10 @@ export class ConfigSetProcessor {
           client.expire(progressKey, 7 * 24 * 60 * 60),
           client.sadd(`prehistoric:${this.connectionId}:symbols`, symbol),
           client.expire(`prehistoric:${this.connectionId}:symbols`, 86400),
+          // Use hincrby for symbols_processed to ensure correct count across parallel workers
+          client.hincrby(`prehistoric:${this.connectionId}`, "symbols_processed", 1),
           client.hset(`prehistoric:${this.connectionId}`, {
             candles_loaded: String(candlesProcessed),
-            symbols_processed: String(symbolsProcessed),
             intervals_processed: String(totalIntervalsProcessed),
             missing_intervals: String(missingIntervalsLoaded),
           }),

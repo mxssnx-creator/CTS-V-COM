@@ -156,6 +156,14 @@ export class GlobalTradeEngineCoordinator {
       return
     }
 
+    // Invalidate symbol cache to ensure fresh symbols are picked up on restart.
+    // This prevents the engine from using stale symbols cached from a previous run.
+    const existingManager = this.engineManagers.get(connectionId)
+    if (existingManager) {
+      existingManager.invalidateSymbolsCache()
+      console.log(`[v0] [SymbolCache] Invalidated stale symbols cache for ${connectionId}`)
+    }
+
     // Step 2: Check if already running (check in-memory manager first, then Redis hint)
     try {
       const { getSettings } = await import("@/lib/redis-db")
