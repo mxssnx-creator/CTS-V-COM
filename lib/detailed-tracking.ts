@@ -29,7 +29,7 @@
  *   │   • Pos-count variants are validated here via axisWindows tag   │
  *   │     (prev 1-12 × last 1-4 × cont 1-8 × pause 1-8 = up to 384)   │
  *   └─────────────┬───────────────────────────────────────────────────┘
- *                 │ promote when avgPF >= 1.4 + DDT <= 16h
+ *                 │ promote when avgPF >= 1.0 + DDT <= 16h
  *                 ▼
  *   ┌─────────────────────────────────────────────────────────────────┐
  *   │ REAL  — ACCUMULATION stage (cumulative across cycles)           │

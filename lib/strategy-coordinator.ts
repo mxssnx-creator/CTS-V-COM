@@ -8,7 +8,7 @@
  * 2. MAIN: Select Sets where avgProfitFactor >= 1.2 (from base).
  *          Expand each Set with position-size / leverage config variants.
  *          Max 250 entries per Set; rearrange by performance when over limit.
- * 3. REAL: Select Sets where avgProfitFactor >= 1.4 (from main).
+ * 3. REAL: Select Sets where avgProfitFactor >= 1.0 (from main).
  *          Exchange-mirrored high-confidence strategies.
  * 4. LIVE: Select best 500 Sets (ranked by profitFactor) for real trading.
  *          One pseudo position per (indication_type, direction) Set.
@@ -187,8 +187,8 @@ export class StrategyCoordinator {
   // Profit factor thresholds per stage
   private readonly PF_BASE_MIN = 1.0    // Minimum to enter BASE set
   private readonly PF_MAIN_MIN = 1.2    // Base sets must have avgPF >= 1.2 to enter MAIN
-  private readonly PF_REAL_MIN = 1.4    // Main sets must have avgPF >= 1.4 to enter REAL
-  private readonly PF_LIVE_MIN = 1.4    // Real sets must have avgPF >= 1.4 to enter LIVE
+  private readonly PF_REAL_MIN = 1.0    // Main sets must have avgPF >= 1.0 to enter REAL
+  private readonly PF_LIVE_MIN = 1.0    // Real sets must have avgPF >= 1.0 to enter LIVE
 
   // ── Filter axes (P0-2) ──────────────────────────────────────────────
   // Spec: *"filtering by Profitfactor Minimum, DrawdownTime Maximum"*.
@@ -213,15 +213,15 @@ export class StrategyCoordinator {
     },
     real: {
       maxDrawdownTime: 180,   // 3 hours — consistent with MAIN
-      minProfitFactor: 1.4,   // Main sets with avgPF >= 1.4 → promoted to REAL
+      minProfitFactor: 1.0,   // Main sets with avgPF >= 1.0 → promoted to REAL
       confidence: 0.65,       // advisory only
-      description: "Sets promoted from MAIN with profitFactor >= 1.4 + DDT <= 3h",
+      description: "Sets promoted from MAIN with profitFactor >= 1.0 + DDT <= 3h",
     },
     live: {
       maxDrawdownTime: 180,   // 3 hours — ensures REAL sets flow through to LIVE
-      minProfitFactor: 1.4,   // Match REAL stage minimum so Sets can flow through
+      minProfitFactor: 1.0,   // Match REAL stage minimum so Sets can flow through
       confidence: 0.65,       // advisory only
-      description: "Best 500 Sets from REAL (PF >= 1.4 + DDT <= 3h) ready for live trading",
+      description: "Best 500 Sets from REAL (PF >= 1.0 + DDT <= 3h) ready for live trading",
     },
   }
 
@@ -279,7 +279,7 @@ export class StrategyCoordinator {
       const { result: mainResult, sets: mainSets } = await this.createMainSets(symbol, baseSets, posCtx)
       results.push(mainResult)
 
-      // STAGE 3: REAL — promote Sets with avgPF >= 1.4 (base-promoted AND
+      // STAGE 3: REAL — promote Sets with avgPF >= 1.0 (base-promoted AND
       // additional related variants flow uniformly through this filter)
       const { result: realResult, sets: realSets } = await this.evaluateRealSets(symbol, mainSets)
       results.push(realResult)
@@ -1094,9 +1094,9 @@ export class StrategyCoordinator {
 
   // ─── STAGE 3: REAL ───────────────────────────────────────────────────────────
 
-  /**
-   * Promote MAIN Sets with avgProfitFactor >= 1.4 to REAL.
-   */
+/**
+    * Promote MAIN Sets with avgProfitFactor >= 1.0 to REAL.
+    */
   private async evaluateRealSets(
     symbol: string,
     inputSets?: StrategySet[],
