@@ -14,6 +14,13 @@ services:
       - KV_REST_API_TOKEN=${REDIS_PASSWORD:-default_password}
       - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-change-in-production}
       - NODE_ENV=production
+      - NODE_OPTIONS=--max-old-space-size=6144
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
     depends_on:
       - redis
     volumes:
@@ -40,6 +47,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
 
 volumes:
   redis_data:
