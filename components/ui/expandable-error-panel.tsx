@@ -89,13 +89,15 @@ export function ExpandableErrorPanel({
   }, [logs, filterLevel, searchTerm])
 
   const toggleExpand = (index: number) => {
-    const newExpanded = new Set(expandedLogs)
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index)
-    } else {
-      newExpanded.add(index)
-    }
-    setExpandedLogs(newExpanded)
+    setExpandedLogs(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
   }
 
   const copyToClipboard = (text: string) => {

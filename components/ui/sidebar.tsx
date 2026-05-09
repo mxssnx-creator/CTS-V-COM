@@ -69,9 +69,18 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
+  // Read cookie on mount to initialize state (for persistence across refreshes)
+  const [_open, _setOpen] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return defaultOpen
+    const cookies = document.cookie.split(';')
+    const cookie = cookies.find(c => c.trim().startsWith(`${SIDEBAR_COOKIE_NAME}=`))
+    if (cookie) {
+      const value = cookie.split('=')[1]?.trim()
+      if (value === 'true' || value === '1') return true
+      if (value === 'false' || value === '0') return false
+    }
+    return defaultOpen
+  })
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -92,6 +101,17 @@ function SidebarProvider({
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
+
+  // Read cookie on mount to restore user's preference (fixes SSR hydration mismatch)
+  React.useEffect(() => {
+    if (openProp !== undefined) return // controlled, don't override
+    const match = document.cookie.match(new RegExp('(^| )' + SIDEBAR_COOKIE_NAME + '=([^;]+)'))
+    if (match) {
+      const value = match[2]
+      const boolValue = value === 'true' || value === '1'
+      _setOpen(boolValue)
+    }
+  }, [openProp])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {

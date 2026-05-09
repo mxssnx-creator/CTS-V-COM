@@ -39,7 +39,7 @@ export default function ChatGroupComponent({ group }: Props) {
   return (
     <div className="border-b border-white/5">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpanded(prev => !prev)}
         className="w-full px-3 py-2 text-left hover:bg-white/5 transition-colors flex items-center justify-between"
       >
         <div className="flex items-center gap-2 min-w-0">

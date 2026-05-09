@@ -662,7 +662,7 @@ export function ConnectionCard({
     <Card className="relative overflow-hidden hover:shadow-lg transition-shadow">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+           <div className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer" onClick={() => setExpanded(prev => !prev)}>
             <CardTitle className="text-base font-semibold truncate">
               {connection.name} ({connection.exchange})
             </CardTitle>

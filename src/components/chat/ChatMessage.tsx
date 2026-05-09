@@ -27,8 +27,8 @@ export default function ChatMessageComponent({ message }: Props) {
     success: "bg-green-400",
   };
 
-  return (
-    <div className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpanded(!expanded)}>
+   return (
+     <div className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpanded(prev => !prev)}>
       <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${typeDots[message.type]}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">

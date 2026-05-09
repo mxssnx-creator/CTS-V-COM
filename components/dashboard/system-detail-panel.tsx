@@ -527,7 +527,7 @@ function LogRow({ log }: { log: LogEntry }) {
   return (
     <div className={`rounded border text-[10px] ${isError ? "border-red-200 bg-red-50/50" : isWarning ? "border-yellow-200 bg-yellow-50/50" : "border-border bg-background"}`}>
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpanded(prev => !prev)}
         className="w-full flex items-center gap-1.5 px-2 py-1 hover:bg-muted/30 text-left"
       >
         {expanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}

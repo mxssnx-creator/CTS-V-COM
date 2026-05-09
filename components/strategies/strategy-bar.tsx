@@ -78,7 +78,7 @@ export function StrategyBar({ strategy, onToggle, onVolumeFactorChange, minimalP
           <div className="flex flex-wrap items-center gap-3 min-w-max">
             <Switch checked={strategy.isActive} onCheckedChange={(checked) => onToggle(strategy.id, checked)} />
 
-            <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} className="p-1 shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => setExpanded(prev => !prev)} className="p-1 shrink-0">
               {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
 

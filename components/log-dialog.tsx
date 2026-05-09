@@ -32,13 +32,15 @@ export function LogDialog({ connectionId, logs, onRefresh }: LogDialogProps) {
   const [filterSymbol, setFilterSymbol] = useState<string>("all")
 
   const toggleLog = (id: string) => {
-    const newExpanded = new Set(expandedLogs)
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id)
-    } else {
-      newExpanded.add(id)
-    }
-    setExpandedLogs(newExpanded)
+    setExpandedLogs(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
   }
 
   const getLevelColor = (level: string) => {

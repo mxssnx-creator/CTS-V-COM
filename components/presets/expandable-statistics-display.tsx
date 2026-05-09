@@ -50,43 +50,51 @@ export function ExpandableStatisticsDisplay({
   }, [results, minProfitFactor, maxDrawdownHours])
 
   const toggleMajor = (key: string) => {
-    const newSet = new Set(expandedMajor)
-    if (newSet.has(key)) {
-      newSet.delete(key)
-    } else {
-      newSet.add(key)
-    }
-    setExpandedMajor(newSet)
+    setExpandedMajor(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
   }
 
   const toggleMinor = (key: string) => {
-    const newSet = new Set(expandedMinor)
-    if (newSet.has(key)) {
-      newSet.delete(key)
-    } else {
-      newSet.add(key)
-    }
-    setExpandedMinor(newSet)
+    setExpandedMinor(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
   }
 
   const toggleTP = (key: string) => {
-    const newSet = new Set(expandedTP)
-    if (newSet.has(key)) {
-      newSet.delete(key)
-    } else {
-      newSet.add(key)
-    }
-    setExpandedTP(newSet)
+    setExpandedTP(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
   }
 
   const toggleSL = (key: string) => {
-    const newSet = new Set(expandedSL)
-    if (newSet.has(key)) {
-      newSet.delete(key)
-    } else {
-      newSet.add(key)
-    }
-    setExpandedSL(newSet)
+    setExpandedSL(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
   }
 
   const calculateMetrics = (results: PresetCoordinationResult[]) => {

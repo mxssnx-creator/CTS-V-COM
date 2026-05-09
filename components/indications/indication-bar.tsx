@@ -74,7 +74,7 @@ export function IndicationBar({ indication, onToggle, minimalProfitFactor }: Ind
           <div className="flex flex-wrap items-center gap-3 min-w-max">
             <Switch checked={indication.isActive} onCheckedChange={(checked) => onToggle(indication.id, checked)} />
 
-            <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} className="p-1 shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => setExpanded(prev => !prev)} className="p-1 shrink-0">
               {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
 

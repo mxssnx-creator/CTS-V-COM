@@ -60,7 +60,7 @@ export function PresetCardCompact({
           variant="ghost"
           size="sm"
           className="p-0 h-4 w-4 hover:bg-slate-700/50"
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setExpanded(prev => !prev)}
         >
           {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         </Button>
