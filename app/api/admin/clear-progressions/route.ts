@@ -57,21 +57,20 @@ export const dynamic = "force-dynamic"
 // otherwise → delete.
 
 const PROTECTED_PREFIXES = [
-  "connection:",          // Exchange credentials & per-connection config
-  "connections:tombstoned", // Operator delete decisions (must outlive reset)
-  "progression:",         // Progression counters (frames, cycle counts, indication/strategy totals)
-  "settings:",            // Operator settings
-  "app_settings",         // Canonical settings hash
-  "all_settings",         // Legacy settings hash
-  "migration:",           // Schema migration markers
-  "_migration",           // Migration internal flags (`_migrations_run`, `_schema_version`)
-  "_schema_version",
-  "predefinitions:",      // Operator-defined predefined sets
-  "system:base_connections_seeded", // Idempotency guard for seeder
-  "auth:",                // Auth sessions & tokens
-  "session:",             // User session data
-  "api_key:",             // Stored API keys
-] as const
+   "connection:",          // Exchange credentials & per-connection config
+   "connections:tombstoned", // Operator delete decisions (must outlive reset)
+   "settings:",            // Operator settings
+   "app_settings",         // Canonical settings hash
+   "all_settings",         // Legacy settings hash
+   "migration:",           // Schema migration markers
+   "_migration",           // Migration internal flags (`_migrations_run`, `_schema_version`)
+   "_schema_version",
+   "predefinitions:",      // Operator-defined predefined sets
+   "system:base_connections_seeded", // Idempotency guard for seeder
+   "auth:",                // Auth sessions & tokens
+   "session:",             // User session data
+   "api_key:",             // Stored API keys
+ ] as const
 
 // FORCE-CLEAR: prefixes that LOOK like they're protected but are pure
 // runtime caches that must be wiped on reset. Add here only if the

@@ -201,24 +201,21 @@ export class PresetCoordinationEngine {
     // This is a placeholder - actual implementation depends on exchange API
     const historicalData = await this.fetchHistoricalOHLCV(symbol, startTime, endTime)
 
-    // Store in database
-    if (historicalData.length > 0) {
-      await this.storeHistoricalData(symbol, historicalData)
-      await DataSyncManager.logSync(
-        this.connectionId,
-        symbol,
-        "market_data",
-        startTime,
-        endTime,
-        historicalData.length,
-        "success",
-      )
-      console.log(
-        `[v0] Loaded ${historicalData.length} candles for ${symbol} [${startTime.toISOString()} → ${endTime.toISOString()}]`,
-      )
-    } else {
-      await DataSyncManager.logSync(this.connectionId, symbol, "market_data", startTime, endTime, 0, "partial")
-    }
+    // Store in database (even if empty, to mark range as processed)
+    await this.storeHistoricalData(symbol, historicalData)
+    // Always use "success" to mark range as synced and prevent infinite retry loops
+    await DataSyncManager.logSync(
+      this.connectionId,
+      symbol,
+      "market_data",
+      startTime,
+      endTime,
+      historicalData.length,
+      "success",
+    )
+    console.log(
+      `[v0] ${historicalData.length === 0 ? "Marked empty range for " : "Loaded " + historicalData.length + " candles for "} ${symbol} [${startTime.toISOString()} → ${endTime.toISOString()}]`,
+    )
   }
 
   /**

@@ -1285,8 +1285,9 @@ export class TradeEngineManager {
         //   * indication_live_cycle_count     — only ticks that produced at least one indication.
         //                                       This is the meaningful "live progression" counter.
         //   * indications_count / per-type    — cumulative indications generated (hincrby).
-        //   * frames_processed                — cumulative tick count across ALL processors
-        //                                       (indication + strategy + realtime). Independent
+        //   * frames_processed                — unique cumulative tick count per connection.
+        //                                       ONLY incremented by indication processor to prevent
+        //                                       doubled progression counts from multiple cadences.
         //                                       of per-Set DB-entry caps — counts every loop tick
         //                                       since the engine started.
         try {
@@ -1586,36 +1587,39 @@ export class TradeEngineManager {
         //   strategies_count              = canonical TOTAL strategies produced.
         //     `evaluatedThisCycle` sums strategy-processor results across symbols,
         //     where each result's `strategiesEvaluated` is the REAL-stage (final)
-        //     count only — Base/Main are intermediate filter stages of the SAME
-        //     pipeline and are NOT added here, so cross-symbol sums are safe.
-        try {
-          const client = getRedisClient()
-          const redisKey = `progression:${this.connectionId}`
-          // Fan-out cycle counters in parallel — same atomic-counter
-          // pattern as the indication tick. Replacing the previous
-          // sequential awaits saves multiple RTTs per cycle and lets us
-          // include the per-symbol error fields in the same batch.
-          const writes: Promise<any>[] = [
-            client.hincrby(redisKey, "strategy_cycle_count", 1),
-            client.hincrby(redisKey, "frames_processed", 1),
-            client.hset(redisKey, "strategies_live_ready", String(liveReadyThisCycle)),
-            client.expire(redisKey, 7 * 24 * 60 * 60),
-          ]
-          if (evaluatedThisCycle > 0) {
-            writes.push(client.hincrby(redisKey, "strategy_live_cycle_count", 1))
-            writes.push(client.hincrby(redisKey, "strategies_count", evaluatedThisCycle))
-          }
-          // ── Per-symbol error visibility ────────────────────────────────
-          // Mirrors the indication tick. Without this a chronically-
-          // failing symbol's strategy errors would be silently swallowed
-          // by the per-task `.catch` and the dashboard would show green.
-          if (strategyFailedSymbols.length > 0) {
-            writes.push(
-              client.hincrby(redisKey, "strategy_symbol_errors_count", strategyFailedSymbols.length),
-            )
-            writes.push(
-              client.hset(redisKey, {
-                strategy_symbol_errors_last_cycle: String(strategyFailedSymbols.length),
+//     count only — Base/Main are intermediate filter stages of the SAME
+         //     pipeline and are NOT added here, so cross-symbol sums are safe.
+         try {
+           const client = getRedisClient()
+           const redisKey = `progression:${this.connectionId}`
+           // Fan-out cycle counters in parallel — same atomic-counter
+           // pattern as the indication tick. Replacing the previous
+           // sequential awaits saves multiple RTTs per cycle and lets us
+           // include the per-symbol error fields in the same batch.
+           const writes: Promise<any>[] = [
+             client.hincrby(redisKey, "strategy_cycle_count", 1),
+             client.hset(redisKey, "strategies_live_ready", String(liveReadyThisCycle)),
+             client.expire(redisKey, 7 * 24 * 60 * 60),
+           ]
+           // NOTE: frames_processed is ONLY incremented by the indication processor
+           // to ensure unique progression per connection. Strategy processor runs
+           // at a slower interval and would cause doubled progression counts if it
+           // also incremented this counter.
+           if (evaluatedThisCycle > 0) {
+             writes.push(client.hincrby(redisKey, "strategy_live_cycle_count", 1))
+             writes.push(client.hincrby(redisKey, "strategies_count", evaluatedThisCycle))
+           }
+           // ── Per-symbol error visibility ────────────────────────────────
+           // Mirrors the indication tick. Without this a chronically-
+           // failing symbol's strategy errors would be silently swallowed
+           // by the per-task `.catch` and the dashboard would show green.
+           if (strategyFailedSymbols.length > 0) {
+             writes.push(
+               client.hincrby(redisKey, "strategy_symbol_errors_count", strategyFailedSymbols.length),
+             )
+             writes.push(
+               client.hset(redisKey, {
+                 strategy_symbol_errors_last_cycle: String(strategyFailedSymbols.length),
                 strategy_symbol_errors_last_at: new Date().toISOString(),
               }),
             )
@@ -1863,11 +1867,11 @@ export class TradeEngineManager {
         //   * realtime_live_cycle_count  — only ticks that actually updated open
         //                                  positions (rtResult.updates > 0).
         //   * frames_processed           — cross-processor cumulative tick total.
+        //     NOTE: ONLY incremented by indication processor to prevent doubled counts.
         try {
           const client = getRedisClient()
           const redisKey = `progression:${this.connectionId}`
           await client.hincrby(redisKey, "realtime_cycle_count", 1)
-          await client.hincrby(redisKey, "frames_processed", 1)
           if (outcome === "productive") {
             await client.hincrby(redisKey, "realtime_live_cycle_count", 1)
           }

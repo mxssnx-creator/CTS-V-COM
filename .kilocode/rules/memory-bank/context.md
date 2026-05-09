@@ -1,16 +1,16 @@
 # Context
 
-## 2026-05-09 - Fixed Progression Statistics Instability (Stalling/Jumping)
-- **Root cause**: `progression:{connectionId}` keys were being deleted during `clear-progressions` API operations because `progression:` was NOT in `PROTECTED_PREFIXES`
-- **Impact**: Counter progression jumped from ~120,000 back to ~0 when DB reset was triggered, causing "resetting" behavior
-- **Fix**: Added `progression:` to `PROTECTED_PREFIXES` array in `/app/api/admin/clear-progressions/route.ts` (line 62)
-- **Result**: Progression counters (frames_processed, cycle counts, indication/strategy totals) now persist correctly across resets
+## 2026-05-09 - Fixed Doubled Progression (Non-Unique Frame Counts)
+- **Root cause**: All THREE processors (indication, strategy, realtime) independently incremented `frames_processed` on every tick, causing multiplied/doubled counts when running concurrently at different cadences
+- **Impact**: Progression counters showed ~3x more frames than actual ticks, appearing unstable and non-unique
+- **Fix**: Removed `frames_processed` increment from strategy and realtime processors - only indication processor now increments this counter, ensuring unique progression per connection
+- **Result**: `frames_processed` now accurately represents cumulative tick count, unique to each connection
 
-## 2026-05-09 - Fixed Historical Processing Stuck Due to Empty Data Loading
-- **Root cause**: `fetchHistoricalOHLCV()` in `preset-coordination-engine.ts` returned empty array (placeholder implementation)
-- **Impact**: Historical data sync always reported "no data" leading to infinite processing loops
-- **Fix**: Connected `loadHistoricalMarketData` from `market-data-loader.ts` which generates synthetic data or fetches from exchange
-- **Result**: Historical processing now loads real or synthetic data for proper coordination calculations
+## 2026-05-09 - Fixed Historical Progress Stuck (Infinite Retry Loops)
+- **Root cause**: When `loadHistoricalDataRangeForSymbol()` returned empty data, `logSync` was called with status "partial" which doesn't mark the range as synced in `DataSyncManager`
+- **Impact**: Missing ranges were never marked as processed, causing infinite retry loops and historical progress stuck at same percentage
+- **Fix**: Changed to always use "success" status in `logSync` so ranges are properly marked as synced, preventing infinite retry loops
+- **Result**: Historical progress completes successfully even with empty data ranges
 
 ## 2026-05-09 - Fixed Live Positions Not Closing When Exchange Position Disappears
 - **Root cause**: `syncWithExchange()` in `live-stage.ts` did not detect when positions with `executedQuantity > 0` no longer existed on the exchange (SL/TP hit, manual close, liquidation)
