@@ -1,5 +1,9 @@
 # Context
 
+## 2026-05-09 - Sidebar Collapsible Mode Fixed
+- Changed `collapsible="icon"` to `collapsible="offcanvas"` in `components/app-sidebar.tsx:151` to fix sidebar not hiding when collapsed
+- The `icon` mode only shrinks the sidebar width, while `offcanvas` slides it off-screen completely
+
 ## 2026-05-09 - Serverless Deployment with 6GB Memory
 - Configured fully serverless deployment on Vercel with **6GB memory per function** and **no restrictions**
 - Updated `vercel.json`: increased memory from 3008MB → 6144MB, maxDuration from 300s → 900s (15min)
