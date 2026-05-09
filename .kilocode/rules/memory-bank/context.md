@@ -1,5 +1,12 @@
 # Context
 
+## 2026-05-09 - Fixed Live Positions Not Closing When Exchange Position Disappears
+- **Root cause**: `syncWithExchange()` in `live-stage.ts` did not detect when positions with `executedQuantity > 0` no longer existed on the exchange (SL/TP hit, manual close, liquidation)
+- **Previous behavior**: Positions stayed open until the next `reconcileLivePositions` cron cycle (up to 1 minute delay)
+- **Fix**: Added `else if` branch in `syncWithExchange()` (line 2545) to immediately detect and close positions where `getPosition()` returns null but `executedQuantity > 0`
+- **Additional fix**: Added moved marker check and index list manipulation (lrem/lpush/ltrim) to prevent double-counting with reconcile cycle
+- **Impact**: Live positions now close immediately when control orders execute or exchange closes them externally, instead of waiting up to 60 seconds
+
 ## 2026-05-09 - Fixed Main Connection Stability During Progression
 - **Root cause**: Progression API phase detection at lines 137-183 used `isActiveInserted` and `isEnabled` checks that caused phase jitter
 - **Issues**:
