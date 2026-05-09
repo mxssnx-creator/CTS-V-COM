@@ -80,8 +80,11 @@ export async function validateDatabase(): Promise<ValidationResult> {
     }
 
     // Check 6: Trade engine global state
+    // CRITICAL: Only initialize if completely missing. Never overwrite an existing
+    // status (including 'running' from migrations or operator 'stopped'/'paused').
     const globalState = await client.hgetall('trade_engine:global')
-    if (!globalState || Object.keys(globalState).length === 0) {
+    const hasExistingStatus = globalState && typeof (globalState as any).status === 'string' && (globalState as any).status.length > 0
+    if (!hasExistingStatus) {
       result.repairs.push("Initializing trade engine global state...")
       await client.hset('trade_engine:global', {
         status: 'stopped',

@@ -884,27 +884,28 @@ async function ensureBaseConnections(client: any): Promise<{ createdOrUpdated: n
     // dashboard-enable defaults so a fresh DB still surfaces Bybit/BingX
     // ready to go.
 
-    if (!hasExisting) {
-      // First-time seed. Apply full canonical defaults.
-      const seedData: Record<string, string> = {
-        id: cfg.id,
-        name: cfg.name,
-        exchange: cfg.exchange,
-        is_predefined: "0",
-        is_inserted: "1",
-        is_dashboard_inserted: cfg.autoActive ? "1" : "0",
-        is_active_inserted: cfg.autoActive ? "1" : "0",
-        is_enabled: "1",
-        is_enabled_dashboard: cfg.autoActive ? "1" : "0",
-        is_active: cfg.autoActive ? "1" : "0",
-        connection_method: "library",
-        connection_library: "native",
-        api_type: "perpetual_futures",
-        api_key: hasRealCredentials ? apiKey : "",
-        api_secret: hasRealCredentials ? apiSecret : "",
-        created_at: now,
-        updated_at: now,
-      }
+if (!hasExisting) {
+       // First-time seed. Apply full canonical defaults.
+       const seedData: Record<string, string> = {
+         id: cfg.id,
+         name: cfg.name,
+         exchange: cfg.exchange,
+         is_predefined: "0",
+         is_inserted: "1",
+         is_dashboard_inserted: cfg.autoActive ? "1" : "0",
+         is_active_inserted: cfg.autoActive ? "1" : "0",
+         is_assigned: cfg.autoActive ? "1" : "0",
+         is_enabled: "1",
+         is_enabled_dashboard: cfg.autoActive ? "1" : "0",
+         is_active: cfg.autoActive ? "1" : "0",
+         connection_method: "library",
+         connection_library: "native",
+         api_type: "perpetual_futures",
+         api_key: hasRealCredentials ? apiKey : "",
+         api_secret: hasRealCredentials ? apiSecret : "",
+         created_at: now,
+         updated_at: now,
+       }
       await client.hset(`connection:${cfg.id}`, seedData)
       await client.sadd("connections", cfg.id)
       if (hasRealCredentials) credentialsInjected++
