@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from "react"
 
 interface User {
   id: number
@@ -28,14 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: "admin",
   })
   const [token, setToken] = useState<string | null>("admin-token-disabled")
-  const [isLoading, setIsLoading] = useState(false) // Initialize to false - user is always logged in
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    // User is pre-initialized as admin, so loading is complete immediately
     setIsLoading(false)
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     setUser({
       id: 1,
       username: "Administrator",
@@ -44,9 +43,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     setToken("admin-token-disabled")
     return { success: true }
-  }
+  }, [])
 
-  const register = async (username: string, email: string, password: string) => {
+  const register = useCallback(async (username: string, email: string, password: string) => {
     setUser({
       id: 1,
       username: "Administrator",
@@ -55,14 +54,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     setToken("admin-token-disabled")
     return { success: true }
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     // User remains logged in as admin
-  }
+  }, [])
+
+  const contextValue = useMemo<AuthContextType>(() => ({
+    user,
+    token,
+    login,
+    register,
+    logout,
+    isLoading,
+  }), [user, token, login, register, logout, isLoading])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   )
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react"
 
 interface ExchangeContextType {
   selectedExchange: string | null
@@ -16,20 +16,18 @@ interface ExchangeContextType {
 const ExchangeContext = createContext<ExchangeContextType | undefined>(undefined)
 
 export function ExchangeProvider({ children }: { children: ReactNode }) {
-  const [selectedExchange, setSelectedExchange] = useState<string | null>(null)
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
+  const [selectedExchange, setSelectedExchangeState] = useState<string | null>(null)
+  const [selectedConnectionId, setSelectedConnectionIdState] = useState<string | null>(null)
   const [activeConnections, setActiveConnections] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const loadingRef = useRef(false)
   const lastLoadRef = useRef(0)
-  // Use a ref to read selectedConnectionId inside the callback without stale closure
   const selectedConnectionIdRef = useRef<string | null>(null)
-  const LOAD_COOLDOWN = 10000 // 10 seconds between refreshes
+  const LOAD_COOLDOWN = 10000
 
   const loadActiveConnections = useCallback(async (options?: { force?: boolean }) => {
-    const force = options?.force === true
     if (loadingRef.current) return
-    if (!force && Date.now() - lastLoadRef.current < LOAD_COOLDOWN) return
+    if (!options?.force && Date.now() - lastLoadRef.current < LOAD_COOLDOWN) return
 
     loadingRef.current = true
     setIsLoading(true)
@@ -44,31 +42,18 @@ export function ExchangeProvider({ children }: { children: ReactNode }) {
         
         const toBoolean = (v: unknown) => v === true || v === 1 || v === "1" || v === "true"
 
-        // STABLE ASSIGNMENT RULE: a connection appears in Main Connections ONLY when
-        // the user has explicitly assigned it (is_active_inserted / is_dashboard_inserted /
-        // is_assigned) or the dashboard toggle is currently on (is_enabled_dashboard).
-        // We do NOT auto-include connections just because they are base (bybit/bingx);
-        // that was the root cause of cards "re-appearing" after enable/delete.
         const mainConnections = connections.filter((c: any) => {
-          const isInserted =
-            toBoolean(c.is_active_inserted) ||
-            toBoolean(c.is_dashboard_inserted) ||
-            toBoolean(c.is_assigned)
+          const isInserted = toBoolean(c.is_active_inserted) || toBoolean(c.is_dashboard_inserted) || toBoolean(c.is_assigned)
           const isDashboardActive = toBoolean(c.is_enabled_dashboard)
           return isInserted || isDashboardActive
         })
         
         setActiveConnections(mainConnections)
         
-        // Auto-select only when no connection is currently selected.
-        // Read from ref to avoid stale closure (state is always null inside useCallback).
         if (mainConnections.length > 0 && !selectedConnectionIdRef.current) {
-          // Prefer BingX, then fall back to first available connection
-          const preferred =
-            mainConnections.find((c: any) => (c.exchange || "").toLowerCase() === "bingx") ||
-            mainConnections[0]
-          setSelectedConnectionId(preferred.id)
-          setSelectedExchange(preferred.exchange || null)
+          const preferred = mainConnections.find((c: any) => (c.exchange || "").toLowerCase() === "bingx") || mainConnections[0]
+          setSelectedConnectionIdState(preferred.id)
+          setSelectedExchangeState(preferred.exchange || null)
           selectedConnectionIdRef.current = preferred.id
         }
       }
@@ -81,7 +66,6 @@ export function ExchangeProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Load on mount; also refresh when connections are toggled or added/removed
   useEffect(() => {
     loadActiveConnections()
 
@@ -100,32 +84,51 @@ export function ExchangeProvider({ children }: { children: ReactNode }) {
         window.removeEventListener("connection-removed", handleConnectionChange)
       }
     }
-  }, [])
+  }, [loadActiveConnections])
+
+  const setSelectedExchange = useCallback((exchange: string | null) => {
+    setSelectedExchangeState(exchange)
+    const matching = activeConnections.find((connection: any) => connection.exchange === exchange)
+    if (matching) {
+      setSelectedConnectionIdState(matching.id)
+      selectedConnectionIdRef.current = matching.id
+    } else {
+      setSelectedConnectionIdState(null)
+      selectedConnectionIdRef.current = null
+    }
+  }, [activeConnections])
+
+  const setSelectedConnectionId = useCallback((connectionId: string | null) => {
+    setSelectedConnectionIdState(connectionId)
+    selectedConnectionIdRef.current = connectionId
+    const matching = activeConnections.find((connection: any) => connection.id === connectionId)
+    setSelectedExchangeState(matching?.exchange || null)
+  }, [activeConnections])
 
   const selectedConnection = activeConnections.find((connection: any) => connection.id === selectedConnectionId) || null
 
+  const contextValue = useMemo<ExchangeContextType>(() => ({
+    selectedExchange,
+    setSelectedExchange,
+    selectedConnectionId,
+    setSelectedConnectionId,
+    selectedConnection,
+    activeConnections,
+    loadActiveConnections,
+    isLoading,
+  }), [
+    selectedExchange,
+    selectedConnectionId,
+    selectedConnection,
+    activeConnections,
+    loadActiveConnections,
+    isLoading,
+    setSelectedExchange,
+    setSelectedConnectionId,
+  ])
+
   return (
-    <ExchangeContext.Provider
-      value={{
-        selectedExchange,
-        setSelectedExchange: (exchange) => {
-          setSelectedExchange(exchange)
-          const matching = activeConnections.find((connection: any) => connection.exchange === exchange)
-          setSelectedConnectionId(matching?.id || null)
-        },
-        selectedConnectionId,
-        setSelectedConnectionId: (connectionId) => {
-          setSelectedConnectionId(connectionId)
-          selectedConnectionIdRef.current = connectionId
-          const matching = activeConnections.find((connection: any) => connection.id === connectionId)
-          setSelectedExchange(matching?.exchange || null)
-        },
-        selectedConnection,
-        activeConnections,
-        loadActiveConnections,
-        isLoading,
-      }}
-    >
+    <ExchangeContext.Provider value={contextValue}>
       {children}
     </ExchangeContext.Provider>
   )
