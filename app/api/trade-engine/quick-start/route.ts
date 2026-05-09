@@ -356,26 +356,25 @@ export async function POST(request: Request) {
       count: symbols.length,
     })
     
-     // Step 3: QuickStart must assign + enable connection flow
-     console.log(`${LOG_PREFIX}: [3/4] Updating connection state...`)
-     
-     const updated = {
-       ...connection,
-       // Explicit quickstart assignment/enabling for engine processing
-       is_active_inserted: "1",
-       is_dashboard_inserted: "1",
-       is_enabled_dashboard: "1",
-       is_assigned: "1",
-       is_active: "1",
-       active_symbols: JSON.stringify(symbols),
-       last_test_status: testPassed ? "success" : "failed",
-       last_test_balance: testBalance,
-       last_test_at: new Date().toISOString(),
-       updated_at: new Date().toISOString(),
-     }
-     
-     await updateConnection(connectionId, updated)
-     console.log(`${LOG_PREFIX}: [3/4] Connection state updated (assigned+enabled for quickstart).`)
+// Step 3: QuickStart must assign connection to Main flow
+      console.log(`${LOG_PREFIX}: [3/4] Updating connection state...`)
+      
+      const updated = {
+        ...connection,
+        // QuickStart assigns connection to Main Connections
+        is_active_inserted: "1",
+        is_dashboard_inserted: "1",
+        is_assigned: "1",
+        is_active: "1",
+        active_symbols: JSON.stringify(symbols),
+        last_test_status: testPassed ? "success" : "failed",
+        last_test_balance: testBalance,
+        last_test_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      
+      await updateConnection(connectionId, updated)
+      console.log(`${LOG_PREFIX}: [3/4] Connection state updated (assigned to Main Connections).`)
     
     // ALSO store in trade_engine_state for engine to find.
     // IMPORTANT: record the user-selected symbol count under
@@ -509,10 +508,11 @@ export async function POST(request: Request) {
           console.warn(`${LOG_PREFIX}: Pre-start cleanup warning:`, restartErr)
         }
 
-        await coordinator.startAll()
-        await coordinator.refreshEngines()
-        
-        // CRITICAL: Apply cache fix to all indication processors after engines are started
+// NOTE: Do NOT call startAll()/refreshEngines() here - they would start engines for
+        // ALL "assigned+enabled" connections, which would include this one prematurely.
+        // The engine will be started explicitly below only if isAssigned && isMainEnabled.
+
+        // CRITICAL: Apply cache fix to all indication processors
         patchIndicationProcessorCaches(coordinator)
         
         // Set global engine state to running
@@ -753,8 +753,8 @@ export async function POST(request: Request) {
       },
       status: hasCredentials ? "ready_with_credentials" : "ready_without_credentials",
       nextSteps: hasCredentials 
-        ? "Connection assigned and enabled in Main Connections. Engine startup initiated."
-        : "Connection assigned and enabled for quickstart, but credentials are missing/invalid for live exchange operations.",
+        ? "Connection assigned to Main Connections. Enable via Main Slider to start engine."
+        : "Connection assigned to Main Connections. Add credentials in Settings, then enable via Main Slider.",
       duration: totalDuration,
       logs: allLogs.slice(0, 50),
       logsCount: allLogs.length,
