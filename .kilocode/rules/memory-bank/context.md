@@ -1,5 +1,11 @@
 # Context
 
+## 2026-05-09 - Fixed Progression Statistics Instability (Stalling/Jumping)
+- **Root cause**: `progression:{connectionId}` keys were being deleted during `clear-progressions` API operations because `progression:` was NOT in `PROTECTED_PREFIXES`
+- **Impact**: Counter progression jumped from ~120,000 back to ~0 when DB reset was triggered, causing "resetting" behavior
+- **Fix**: Added `progression:` to `PROTECTED_PREFIXES` array in `/app/api/admin/clear-progressions/route.ts` (line 62)
+- **Result**: Progression counters (frames_processed, cycle counts, indication/strategy totals) now persist correctly across resets
+
 ## 2026-05-09 - Fixed Historical Processing Stuck Due to Empty Data Loading
 - **Root cause**: `fetchHistoricalOHLCV()` in `preset-coordination-engine.ts` returned empty array (placeholder implementation)
 - **Impact**: Historical data sync always reported "no data" leading to infinite processing loops
