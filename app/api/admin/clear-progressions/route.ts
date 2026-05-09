@@ -59,6 +59,7 @@ export const dynamic = "force-dynamic"
 const PROTECTED_PREFIXES = [
   "connection:",          // Exchange credentials & per-connection config
   "connections:tombstoned", // Operator delete decisions (must outlive reset)
+  "progression:",         // Progression counters (frames, cycle counts, indication/strategy totals)
   "settings:",            // Operator settings
   "app_settings",         // Canonical settings hash
   "all_settings",         // Legacy settings hash
