@@ -365,7 +365,7 @@ export async function POST(request: Request) {
         is_active_inserted: "1",
         is_dashboard_inserted: "1",
         is_assigned: "1",
-        is_active: "1",
+        // Note: is_enabled_dashboard and is_active are NOT set here - user must enable via Main Slider
         active_symbols: JSON.stringify(symbols),
         last_test_status: testPassed ? "success" : "failed",
         last_test_balance: testBalance,

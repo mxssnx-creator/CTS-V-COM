@@ -1,12 +1,14 @@
 # Context
 
 ## 2026-05-09 - Fixed Premature Engine Startup in QuickStart
-- **Root cause**: Two issues in quick-start/route.ts:
-  1. `startAll()` and `refreshEngines()` were called unconditionally at lines 512-513, starting engines for ALL "assigned+enabled" connections
-  2. QuickStart set `is_enabled_dashboard: "1"` at line 367, making the connection "enabled" immediately
+- **Root cause**: Multiple issues in quick-start/route.ts:
+  1. `startAll()` and `refreshEngines()` were called unconditionally, starting engines for ALL "assigned+enabled" connections
+  2. QuickStart set `is_enabled_dashboard: "1"` and `is_active: "1"`, making the connection qualify as "enabled" via `getAssignedAndEnabledConnections()` check
+  3. The auto-start one-shot sweep (`trade-engine-auto-start.ts`) would start the engine via `startMissingEngines()` since `isConnectionMainProcessing()` returned true
 - **Fix**: 
-  1. Removed `startAll()` and `refreshEngines()` calls - engine now only starts via `coordinator.startEngine()` at line 553 when `isAssigned && isMainEnabled`
-  2. Removed `is_enabled_dashboard: "1"` from the updated connection state - connection is now only assigned, not enabled
+  1. Removed `startAll()` and `refreshEngines()` calls
+  2. Removed `is_enabled_dashboard: "1"` and `is_active: "1"` from updated connection state - connection is now only assigned (`is_assigned: "1"`), not enabled
+  3. Engine only starts when `isAssigned && isMainEnabled` is true, ensuring explicit user enable via Main Slider
 - **Impact**: Connection and Progression now only start after user explicitly enables via Main Slider, preventing premature processing
 
 ## 2026-05-09 - Sidebar Collapsible Mode Fixed
