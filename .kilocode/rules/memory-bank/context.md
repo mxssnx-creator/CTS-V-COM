@@ -1,5 +1,17 @@
 # Context
 
+## 2026-05-09 - Fixed Main Connection Stability During Progression
+- **Root cause**: Progression API phase detection at lines 137-183 used `isActiveInserted` and `isEnabled` checks that caused phase jitter
+- **Issues**:
+  1. `isEnabled` checked `is_enabled` field which is separate from dashboard enable state
+  2. Phase logic forced `phase="idle"` when `!isEnabled || (!isActiveInserted && !isInserted)`
+  3. Engine running check used `isActiveInserted` instead of stable `isMainEnabled` check
+- **Fix**:
+  1. Added `isAssigned` and `isMainEnabled` (assigned + dashboard-enabled) state tracking
+  2. Changed phase detection to use `!isAssigned` for idle, `!isMainEnabled` for ready state
+  3. Updated `engineRunning` check to use `isMainEnabled && isAssigned` instead of `isActiveInserted`
+- **Impact**: Main Connection now stays stable at "ready" state when assigned but not enabled, and transitions smoothly to processing phases during engine operation
+
 ## 2026-05-09 - Fixed Premature Engine Startup in QuickStart
 - **Root cause**: Multiple issues in quick-start/route.ts:
   1. `startAll()` and `refreshEngines()` were called unconditionally, starting engines for ALL "assigned+enabled" connections

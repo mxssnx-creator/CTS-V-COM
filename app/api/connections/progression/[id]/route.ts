@@ -87,6 +87,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const isEnabled = connection?.is_enabled === "1" || connection?.is_enabled === true
     const isInserted = connection?.is_inserted === "1" || connection?.is_inserted === true
     const isActiveInserted = connection?.is_active_inserted === "1" || connection?.is_active_inserted === true
+    const isAssigned = connection?.is_assigned === "1" || connection?.is_assigned === true
+    // Main connection is enabled when assigned AND dashboard-enabled (both must be true)
+    const isMainEnabled = isAssigned && isActive
     
     // Get progression state (cycles, success rates)
     let progressionState = await ProgressionStateManager.getProgressionState(connectionId).catch((e) => {
@@ -119,13 +122,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const strategyCycleCount =
       parseInt(progHash.strategy_cycle_count || "0", 10) ||
       toNumber(engineState?.strategy_cycle_count)
-    const hasRecentActivity = engineState?.last_indication_run 
+    const hasRecentActivity = engineState?.last_indication_run
       ? (Date.now() - new Date(engineState.last_indication_run).getTime()) < 60000 // Active in last 60s
       : false
-    
+     
     // Engine is running only when there is current runtime evidence
-    const engineRunning = isEngineRunning || 
-      (isGloballyRunning && (isActiveInserted || isInserted) && isEnabled) ||
+    // Use isMainEnabled (assigned + dashboard-enabled) instead of isActiveInserted
+    // to avoid phase jitter when is_active_inserted lags behind is_main_enabled
+    const engineRunning = isEngineRunning ||
+      (isGloballyRunning && isMainEnabled && isAssigned) ||
       engineState?.status === "running" ||
       hasRecentActivity
     
@@ -172,10 +177,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       phase = "initializing"
       progress = 30
       detail = "Engine starting up..."
-    } else if (!isEnabled || (!isActiveInserted && !isInserted)) {
+    } else if (!isAssigned) {
       phase = "idle"
       progress = 0
-      detail = "Connection disabled or not inserted"
+      detail = "Connection not in Main Connections"
+    } else if (!isMainEnabled) {
+      phase = "ready"
+      progress = 0
+      detail = "Ready - toggle Enable on dashboard to start"
     } else if (progression?.phase === "ready") {
       phase = "ready"
       progress = 0
