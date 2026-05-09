@@ -1,5 +1,19 @@
 # Context
 
+## 2026-05-09 - Serverless Deployment with 6GB Memory
+- Configured fully serverless deployment on Vercel with **6GB memory per function** and **no restrictions**
+- Updated `vercel.json`: increased memory from 3008MB → 6144MB, maxDuration from 300s → 900s (15min)
+- Updated `next.config.mjs`: added `serverMemoryConfig.maxOldSpaceSize: 6144`, `output: 'standalone'`, CORS headers for all origins
+- Updated `package.json`: dev/start scripts use `--max-old-space-size=6144` (was 4096)
+- Updated `Dockerfile`: all build/run steps use 6GB memory limit, non-root user, standalone output
+- Updated `docker-compose.yml`: added memory limits (6GB app, 2GB Redis) and proper resource reservations
+- Updated `vercel-deploy.sh`: automated serverless deployment with 6GB memory configuration
+- Added `SERVERLESS_DEPLOYMENT.md`: comprehensive guide for serverless architecture, memory tuning, monitoring
+- Fixed `tsconfig.json`: removed invalid `ignoreDeprecations` option causing build errors
+- Deployment now supports: unlimited serverless functions, 900s timeouts, global CDN, automatic SSL, Redis KV persistence
+- All API routes now have 6GB RAM allocation, enabling heavy data processing without restrictions
+- Created production-ready serverless configuration for both Vercel and Docker deployments
+
 ## 2026-03-31
 - Updated QuickStart engine setup to explicitly assign and enable connection state during quickstart.
 - QuickStart now writes assignment/activation flags (`is_active_inserted`, `is_dashboard_inserted`, `is_enabled_dashboard`, `is_assigned`, `is_active`) before startup checks.
