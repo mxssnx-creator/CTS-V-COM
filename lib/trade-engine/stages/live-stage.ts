@@ -2542,6 +2542,75 @@ export async function syncWithExchange(connectionId: string, exchangeConnector: 
             roi: (exchangePos as any).roi,
           }
           position.updatedAt = Date.now()
+        } else if ((position.executedQuantity || 0) > 0) {
+          // ── Position closed externally ───────────────────────────────────
+          // `getPosition` returned null but the position has executed qty.
+          // The exchange closed this position (SL/TP hit, manual close, etc.)
+          // Detect and transition to closed immediately instead of waiting for
+          // the next reconcile cron cycle.
+          const movedMarker = `live:positions:${connectionId}:moved:${position.id}`
+          const alreadyMoved = await client.get(movedMarker).catch(() => null)
+
+          const exitPrice = position.exchangeData?.markPrice || position.averageExecutionPrice || position.entryPrice
+          const qty      = position.executedQuantity || 0
+          const avgEntry = position.averageExecutionPrice || position.entryPrice || 0
+
+          let realizedPnl = 0
+          if (exitPrice > 0 && avgEntry > 0 && qty > 0) {
+            realizedPnl = qty *
+              (position.direction === "long" ? exitPrice - avgEntry : avgEntry - exitPrice)
+          }
+
+          // Cancel any orphan SL/TP orders
+          if (position.stopLossOrderId || position.takeProfitOrderId) {
+            const cancellations: Promise<boolean>[] = []
+            if (position.stopLossOrderId) {
+              cancellations.push(
+                cancelProtectionOrder(exchangeConnector, position.symbol, position.stopLossOrderId, "StopLoss"),
+              )
+            }
+            if (position.takeProfitOrderId) {
+              cancellations.push(
+                cancelProtectionOrder(exchangeConnector, position.symbol, position.takeProfitOrderId, "TakeProfit"),
+              )
+            }
+            await Promise.all(cancellations).catch(() => {})
+            position.stopLossOrderId = undefined
+            position.takeProfitOrderId = undefined
+          }
+
+          const openIndexKey   = `live:positions:${connectionId}`
+          const closedIndexKey = `live:positions:${connectionId}:closed`
+
+          position.status = "closed"
+          position.closedAt = Date.now()
+          position.realizedPnL = Math.round(realizedPnl * 100) / 100
+          position.closeReason = position.closeReason || "exchange_reconciliation"
+          pushStep(position, "sync_close", true, `Closed externally via sync @ ${exitPrice.toFixed(4)} PnL=${realizedPnl.toFixed(4)}`)
+
+          const progKey = `progression:${connectionId}`
+          const writes: Promise<any>[] = [
+            client.setex(`live:position:${position.id}`, 604800, JSON.stringify(position)),
+            client.expire(progKey, 7 * 24 * 60 * 60),
+            client.del(`live:lock:${connectionId}:${position.symbol}:${position.direction}`),
+          ]
+          // Only update counters and index lists if not already moved by reconcile
+          if (!alreadyMoved) {
+            writes.push(
+              client.hincrby(progKey, "live_positions_closed_count", 1),
+              client.lrem(openIndexKey, 0, position.id),
+              client.lpush(closedIndexKey, position.id),
+              client.ltrim(closedIndexKey, 0, 4999),
+              client.expire(closedIndexKey, 30 * 24 * 60 * 60),
+              client.setex(movedMarker, 604800, "1"),
+            )
+            if (realizedPnl > 0) {
+              writes.push(client.hincrby(progKey, "live_wins_count", 1))
+            }
+          }
+          await Promise.all(writes)
+          console.log(`${LOG_PREFIX} Sync closed ${position.symbol} externally PnL=${realizedPnl.toFixed(2)}`)
+          continue
         }
 
         // ── Delayed-fill SL/TP arming ─────────────────────────────────
