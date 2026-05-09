@@ -107,7 +107,7 @@ export const DEFAULT_ADVANCED_CONFIG: AdvancedEngineConfig = {
 
   strategyEvaluation: {
     mainMinProfitFactor: { min: 0.1, max: 3.0, default: 0.5, step: 0.1 },
-    realMinProfitFactor: 0.7,
+    realMinProfitFactor: 1.0,
     realMaxDrawdownTimeSeconds: 43200, // 12 hours
     positionCountsToEvaluate: [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30],
     recentPositionCounts: [1, 2, 3, 4],

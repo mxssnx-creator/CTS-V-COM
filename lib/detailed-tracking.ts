@@ -121,7 +121,7 @@ export interface StrategyStageTracking {
     avgProfitFactor: number
     avgDrawdownTime: number
     avgPosPerSet: number
-    minProfitFactor: number           // 1.4 gate
+    minProfitFactor: number           // 1.0 gate
     maxDrawdownTime: number           // 960 min gate
     /**
      * Operator's 4-perspective Real stats (per spec):
@@ -345,7 +345,7 @@ export async function getStrategyTracking(
       avgProfitFactor: Number(real.avg_profit_factor || "0"),
       avgDrawdownTime: Number(real.avg_drawdown_time || "0"),
       avgPosPerSet: Number(real.avg_pos_per_set || "0"),
-      minProfitFactor: Number(settings.minProfitFactorReal || "1.4"),
+      minProfitFactor: Number(settings.minProfitFactorReal || "1.0"),
       maxDrawdownTime: Number(settings.maxDrawdownTimeReal || "960"),
       axisAccumulation,
       variantsAccumulated: realVariants,
