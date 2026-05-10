@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { initRedis, getRedisClient } from "@/lib/redis-db"
+import { getGlobalPresetCoordinationEngineCoordinator } from "@/lib/preset-coordination-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -28,10 +29,19 @@ export async function GET(
     const globalState = await client.hgetall("trade_engine:global")
     const globalRunning = globalState?.status === "running"
 
-    // If global engine stopped but preset says running, it was paused
-    const effectiveStatus = (state.status === "running" && !globalRunning)
-      ? "paused"
-      : state.status
+    // Check if the preset coordination engine is actually running in the coordinator
+    const coordinator = getGlobalPresetCoordinationEngineCoordinator()
+    const engineStatuses = coordinator.getEngineStatuses()
+    const engineKey = `${connectionId}:${presetTypeId}`
+    const isEngineRunning = engineStatuses.some(s => `${s.connectionId}:${s.presetTypeId}` === engineKey && s.isRunning)
+
+    // Determine effective status based on Redis state and actual coordinator state
+    let effectiveStatus = state.status
+    if (state.status === "running" && !isEngineRunning) {
+      effectiveStatus = "stopped"
+    } else if (state.status === "running" && !globalRunning) {
+      effectiveStatus = "paused"
+    }
 
     return NextResponse.json({
       status: effectiveStatus,

@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { initRedis, getRedisClient, getConnection, updateConnection } from "@/lib/redis-db"
 import { SystemLogger } from "@/lib/system-logger"
+import { getGlobalPresetCoordinationEngineCoordinator } from "@/lib/preset-coordination-engine"
+import type { PresetCoordinationConfig } from "@/lib/preset-coordination-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -44,7 +46,17 @@ export async function POST(
       updated_at: new Date().toISOString(),
     })
 
-    // 4. Store preset engine state in Redis
+    // 4. Start the actual preset coordination engine
+    const coordinator = getGlobalPresetCoordinationEngineCoordinator()
+    const config: PresetCoordinationConfig = {
+      connectionId,
+      presetTypeId,
+      autoInitiate: true,
+      calculateHistory: true,
+    }
+    await coordinator.startEngine(connectionId, presetTypeId, config)
+
+    // 5. Store preset engine state in Redis
     await client.hset(`preset_engine:${connectionId}:${presetTypeId}`, {
       status: "running",
       started_at: new Date().toISOString(),

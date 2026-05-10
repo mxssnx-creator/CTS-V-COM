@@ -1068,3 +1068,117 @@ interface IndicatorSignal {
   value: number
   timestamp: Date
 }
+
+/**
+ * Global Preset Coordination Engine Coordinator
+ * Manages multiple preset coordination engine instances
+ */
+export class GlobalPresetCoordinationEngineCoordinator {
+  private engines = new Map<string, PresetCoordinationEngine>()
+  private startingEngines = new Set<string>()
+  private stoppingEngines = new Set<string>()
+
+  constructor() {
+    console.log("[v0] GlobalPresetCoordinationEngineCoordinator initialized")
+  }
+
+  /**
+   * Start a preset coordination engine for a connection
+   */
+  async startEngine(connectionId: string, presetTypeId: string, config: PresetCoordinationConfig): Promise<void> {
+    const key = `${connectionId}:${presetTypeId}`
+
+    if (this.startingEngines.has(key)) {
+      console.log(`[v0] Preset engine ${key} already starting`)
+      return
+    }
+
+    if (this.engines.has(key)) {
+      console.log(`[v0] Preset engine ${key} already running`)
+      return
+    }
+
+    this.startingEngines.add(key)
+
+    try {
+      const engine = new PresetCoordinationEngine(connectionId, presetTypeId)
+      await engine.start(config)
+      this.engines.set(key, engine)
+      console.log(`[v0] Preset engine ${key} started successfully`)
+    } catch (error) {
+      console.error(`[v0] Failed to start preset engine ${key}:`, error)
+      throw error
+    } finally {
+      this.startingEngines.delete(key)
+    }
+  }
+
+  /**
+   * Stop a preset coordination engine
+   */
+  async stopEngine(connectionId: string, presetTypeId: string): Promise<void> {
+    const key = `${connectionId}:${presetTypeId}`
+
+    if (this.stoppingEngines.has(key)) {
+      console.log(`[v0] Preset engine ${key} already stopping`)
+      return
+    }
+
+    const engine = this.engines.get(key)
+    if (!engine) {
+      console.log(`[v0] Preset engine ${key} not found`)
+      return
+    }
+
+    this.stoppingEngines.add(key)
+
+    try {
+      await engine.stop()
+      this.engines.delete(key)
+      console.log(`[v0] Preset engine ${key} stopped successfully`)
+    } catch (error) {
+      console.error(`[v0] Failed to stop preset engine ${key}:`, error)
+      throw error
+    } finally {
+      this.stoppingEngines.delete(key)
+    }
+  }
+
+  /**
+   * Stop all preset coordination engines
+   */
+  async stopAllEngines(): Promise<void> {
+    const promises = Array.from(this.engines.keys()).map(key => {
+      const [connectionId, presetTypeId] = key.split(':')
+      return this.stopEngine(connectionId, presetTypeId).catch(error => {
+        console.error(`[v0] Failed to stop preset engine ${key}:`, error)
+      })
+    })
+
+    await Promise.all(promises)
+    console.log("[v0] All preset engines stopped")
+  }
+
+  /**
+   * Get status of all engines
+   */
+  getEngineStatuses(): Array<{ connectionId: string; presetTypeId: string; isRunning: boolean }> {
+    return Array.from(this.engines.entries()).map(([key, engine]) => {
+      const [connectionId, presetTypeId] = key.split(':')
+      return { connectionId, presetTypeId, isRunning: true }
+    })
+  }
+}
+
+// Global coordinator singleton
+let globalPresetCoordinator: GlobalPresetCoordinationEngineCoordinator | null = null
+
+/**
+ * Get the global preset coordination engine coordinator
+ */
+export function getGlobalPresetCoordinationEngineCoordinator(): GlobalPresetCoordinationEngineCoordinator {
+  if (!globalPresetCoordinator) {
+    globalPresetCoordinator = new GlobalPresetCoordinationEngineCoordinator()
+  }
+  return globalPresetCoordinator
+}

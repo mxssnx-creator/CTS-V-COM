@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { initRedis, getRedisClient } from "@/lib/redis-db"
 import { getGlobalTradeEngineCoordinator } from "@/lib/trade-engine"
+import { getGlobalPresetCoordinationEngineCoordinator } from "@/lib/preset-coordination-engine"
 import { SystemLogger } from "@/lib/system-logger"
 
 export const runtime = "nodejs"
@@ -118,8 +119,13 @@ export async function POST() {
       const coordinator = getGlobalTradeEngineCoordinator()
       if (coordinator?.stopAll) {
         await coordinator.stopAll()
-        console.log("[v0] [ClearProgressions] coordinator.stopAll() OK")
+        console.log("[v0] [ClearProgressions] trade coordinator.stopAll() OK")
       }
+
+      // Also stop all preset coordination engines
+      const presetCoordinator = getGlobalPresetCoordinationEngineCoordinator()
+      await presetCoordinator.stopAllEngines()
+      console.log("[v0] [ClearProgressions] preset coordinator.stopAllEngines() OK")
     } catch (err) {
       engineStopError = err instanceof Error ? err.message : String(err)
       console.warn("[v0] [ClearProgressions] coordinator.stopAll() failed:", engineStopError)

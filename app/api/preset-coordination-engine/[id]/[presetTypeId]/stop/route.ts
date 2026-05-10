@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { initRedis, getRedisClient, getConnection, updateConnection } from "@/lib/redis-db"
 import { SystemLogger } from "@/lib/system-logger"
+import { getGlobalPresetCoordinationEngineCoordinator } from "@/lib/preset-coordination-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +16,10 @@ export async function POST(
 
     await initRedis()
     const client = getRedisClient()
+
+    // Stop the actual preset coordination engine
+    const coordinator = getGlobalPresetCoordinationEngineCoordinator()
+    await coordinator.stopEngine(connectionId, presetTypeId)
 
     // Update preset engine state in Redis
     await client.hset(`preset_engine:${connectionId}:${presetTypeId}`, {
