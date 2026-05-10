@@ -311,6 +311,13 @@ export class TradeEngineManager {
   private realtimeTimer?: NodeJS.Timeout
   private healthCheckTimer?: NodeJS.Timeout
   private heartbeatTimer?: NodeJS.Timeout
+  /**
+   * Monotonic lifecycle token. Every start/stop increments this value and
+   * every self-scheduling processor loop captures the token it belongs to.
+   * This prevents an in-flight tick from an old run from scheduling a stale
+   * timer after a fast stop/start or symbol-basket switch.
+   */
+  private runGeneration = 0
 
   /**
    * Wall-clock timestamp at which this manager instance was constructed.
@@ -366,6 +373,51 @@ export class TradeEngineManager {
   }
 
   /**
+   * Clear processor timers and unregister their handles from the global timer
+   * registry. Safe to call repeatedly; used before every new run and during
+   * stop/error cleanup so only one async progression loop per processor can be
+   * alive for this connection.
+   */
+  private clearProcessorTimers(): void {
+    if (this.indicationTimer) {
+      clearTimeout(this.indicationTimer)
+      unregisterEngineTimer(this.indicationTimer)
+      this.indicationTimer = undefined
+    }
+    if (this.strategyTimer) {
+      clearTimeout(this.strategyTimer)
+      unregisterEngineTimer(this.strategyTimer)
+      this.strategyTimer = undefined
+    }
+    if (this.realtimeTimer) {
+      clearTimeout(this.realtimeTimer)
+      unregisterEngineTimer(this.realtimeTimer)
+      this.realtimeTimer = undefined
+    }
+  }
+
+  private isSameRun(runGeneration: number): boolean {
+    return this.runGeneration === runGeneration
+  }
+
+  private isCurrentRun(runGeneration: number): boolean {
+    return this.isRunning && this.isSameRun(runGeneration)
+  }
+
+  private async clearActiveSnapshots(): Promise<void> {
+    try {
+      const client = getRedisClient()
+      await Promise.all([
+        client.del(`indications_active:${this.connectionId}`),
+        client.del(`strategies_active:${this.connectionId}`),
+      ])
+    } catch {
+      // Non-critical: stats also filters active snapshots by the current
+      // symbol basket, so a Redis cleanup miss cannot leak stale UI counts.
+    }
+  }
+
+  /**
    * Start the trade engine
    */
   async start(config: EngineConfig): Promise<void> {
@@ -373,6 +425,12 @@ export class TradeEngineManager {
       return
     }
     this.isStarting = true
+    // Invalidate any orphaned self-scheduling timers before arming a new run.
+    // This is especially important after fast stop/start cycles where an
+    // in-flight old tick may still be unwinding.
+    this.runGeneration++
+    const runGeneration = this.runGeneration
+    this.clearProcessorTimers()
 
     // Cache config for the watchdog's in-place re-arm path. We do this
     // BEFORE any await so a fast-fail in startup still leaves a usable
@@ -389,6 +447,10 @@ export class TradeEngineManager {
       // Ensure Redis is initialized before using it
       await initRedis()
       
+      // Active-now hashes are per-run snapshots. Clear them before new
+      // processors start so old symbol baskets cannot leak into fresh stats.
+      await this.clearActiveSnapshots()
+
       // Initialize progression state in Redis if not exists
       try {
         const client = getRedisClient()
@@ -504,7 +566,7 @@ export class TradeEngineManager {
       } else {
         // Non-blocking prehistoric loading
         await this.updateProgressionPhase("prehistoric_data", 15, "Loading historical data (background)...")
-        this.loadPrehistoricDataInBackground(prehistoricCacheKey, redisClient)
+        this.loadPrehistoricDataInBackground(prehistoricCacheKey, redisClient, runGeneration)
       }
 
       // Mark engine as running BEFORE starting the self-scheduling processor
@@ -516,19 +578,23 @@ export class TradeEngineManager {
 
       // Phase 3-4: Start indication and strategy processors
       await this.updateProgressionPhase("indications", 60, "Processing indications continuously")
-      this.startIndicationProcessor(config.indicationInterval)
+      this.startIndicationProcessor(config.indicationInterval, runGeneration)
       // Force an immediate indication cycle
       let immediateSymbols = await this.getSymbols()
       if (!immediateSymbols || immediateSymbols.length === 0) {
         immediateSymbols = ["DRIFTUSDT"]
       }
-      const immediateResults = await Promise.all(immediateSymbols.map((symbol) => this.indicationProcessor.processIndication(symbol).catch(() => [])))
+      const immediateResults = await mapWithConcurrency(immediateSymbols, SYMBOL_CONCURRENCY, (symbol) =>
+        this.indicationProcessor.processIndication(symbol).catch(() => [] as any[]),
+      )
       const totalImmediateIndications = immediateResults.reduce((sum, arr) => sum + arr.length, 0)
 
       await this.updateProgressionPhase("strategies", 75, "Processing strategies continuously")
-      this.startStrategyProcessor(config.strategyInterval)
+      this.startStrategyProcessor(config.strategyInterval, runGeneration)
       // Kick off an immediate strategy evaluation cycle
-      const strategyResults = await Promise.all(immediateSymbols.map((symbol) => this.strategyProcessor.processStrategy(symbol).catch(() => ({ strategiesEvaluated: 0, liveReady: 0 }))))
+      const strategyResults = await mapWithConcurrency(immediateSymbols, SYMBOL_CONCURRENCY, (symbol) =>
+        this.strategyProcessor.processStrategy(symbol).catch(() => ({ strategiesEvaluated: 0, liveReady: 0 })),
+      )
       const totalStrategies = strategyResults.reduce((sum, result) => sum + (result?.strategiesEvaluated || 0), 0)
 
       // Phase 5: Start realtime processor
@@ -551,7 +617,7 @@ export class TradeEngineManager {
         85,
         "Realtime processor armed — waiting for prehistoric calc to finish",
       )
-      this.startRealtimeProcessor(config.realtimeInterval)
+      this.startRealtimeProcessor(config.realtimeInterval, runGeneration)
 
       // Verify timers are running
       setTimeout(async () => {
@@ -613,9 +679,7 @@ export class TradeEngineManager {
       // (indication/strategy/realtime are now setTimeout-based; healthCheck/heartbeat
       // remain setInterval. clearInterval and clearTimeout are interchangeable on
       // Node.js Timeouts but we use clearTimeout where appropriate for clarity.)
-      if (this.indicationTimer) { clearTimeout(this.indicationTimer); this.indicationTimer = undefined }
-      if (this.strategyTimer)   { clearTimeout(this.strategyTimer);   this.strategyTimer = undefined }
-      if (this.realtimeTimer)   { clearTimeout(this.realtimeTimer);   this.realtimeTimer = undefined }
+      this.clearProcessorTimers()
       if (this.healthCheckTimer) { clearInterval(this.healthCheckTimer); this.healthCheckTimer = undefined }
       if (this.heartbeatTimer)   { clearInterval(this.heartbeatTimer);   this.heartbeatTimer = undefined }
       
@@ -693,7 +757,7 @@ export class TradeEngineManager {
     const reasons: string[] = []
     try {
       if (!this.indicationTimer) {
-        this.startIndicationProcessor(this.startConfig.indicationInterval)
+        this.startIndicationProcessor(this.startConfig.indicationInterval, this.runGeneration)
         reasons.push("indication")
       }
     } catch (e) {
@@ -701,7 +765,7 @@ export class TradeEngineManager {
     }
     try {
       if (!this.strategyTimer) {
-        this.startStrategyProcessor(this.startConfig.strategyInterval)
+        this.startStrategyProcessor(this.startConfig.strategyInterval, this.runGeneration)
         reasons.push("strategy")
       }
     } catch (e) {
@@ -709,7 +773,7 @@ export class TradeEngineManager {
     }
     try {
       if (!this.realtimeTimer) {
-        this.startRealtimeProcessor(this.startConfig.realtimeInterval)
+        this.startRealtimeProcessor(this.startConfig.realtimeInterval, this.runGeneration)
         reasons.push("realtime")
       }
     } catch (e) {
@@ -745,21 +809,13 @@ export class TradeEngineManager {
   async stop(): Promise<void> {
     console.log("[v0] Stopping trade engine for connection:", this.connectionId)
 
-    // Clear all timers. Processor loops are setTimeout-based; health/heartbeat
-    // are still setInterval. clearTimeout + clearInterval are the same kernel
-    // primitive in Node, but we keep the semantically correct one per timer.
-    if (this.indicationTimer) {
-      clearTimeout(this.indicationTimer)
-      this.indicationTimer = undefined
-    }
-    if (this.strategyTimer) {
-      clearTimeout(this.strategyTimer)
-      this.strategyTimer = undefined
-    }
-    if (this.realtimeTimer) {
-      clearTimeout(this.realtimeTimer)
-      this.realtimeTimer = undefined
-    }
+    // Advance the lifecycle token first so any in-flight tick from the old run
+    // cannot schedule another timeout while this stop is clearing handles.
+    this.runGeneration++
+
+    // Clear all processor timers through the shared helper so the global timer
+    // registry remains accurate across stop/start cycles.
+    this.clearProcessorTimers()
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer)
       this.healthCheckTimer = undefined
@@ -770,6 +826,7 @@ export class TradeEngineManager {
     }
 
     this.isRunning = false
+    await this.clearActiveSnapshots()
 
     // Update engine state and clear running flag
     await this.updateEngineState("stopped")
@@ -784,10 +841,11 @@ export class TradeEngineManager {
    * Runs in background without blocking engine startup
    * Allows engine to proceed to processor startup immediately
    */
-  private loadPrehistoricDataInBackground(cacheKey: string, redisClient: ReturnType<typeof getRedisClient>): void {
+  private loadPrehistoricDataInBackground(cacheKey: string, redisClient: ReturnType<typeof getRedisClient>, runGeneration: number): void {
     this.updateProgressionPhase("prehistoric_data", 15, "Loading historical data in background...")
-      .then(() => this.loadPrehistoricData())
+      .then(() => this.isSameRun(runGeneration) ? this.loadPrehistoricData() : Promise.resolve())
       .then(async () => {
+        if (!this.isSameRun(runGeneration)) return
         await redisClient.set(cacheKey, "1", { EX: 86400 })
         await setSettings(`trade_engine_state:${this.connectionId}`, {
           prehistoric_data_loaded: true,
@@ -796,6 +854,7 @@ export class TradeEngineManager {
         })
       })
       .catch(async (err) => {
+        if (!this.isSameRun(runGeneration)) return
         console.warn(`[v0] [Engine] Prehistoric loading error:`, err instanceof Error ? err.message : String(err))
         await setSettings(`trade_engine_state:${this.connectionId}`, {
           prehistoric_data_loaded: false,
@@ -934,6 +993,9 @@ export class TradeEngineManager {
         symbols_processed: String(processingResult.symbolsProcessed),
         candles_loaded: String(processingResult.candlesProcessed),
         indicators_calculated: String(processingResult.indicationResults),
+        strategy_positions: String(processingResult.strategyPositions),
+        intervals_processed: String(processingResult.intervalsProcessed || 0),
+        missing_intervals: String(processingResult.missingIntervalsLoaded || 0),
         total_duration_ms: String(totalPrehistoricDurationMs),
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1001,6 +1063,8 @@ export class TradeEngineManager {
         config_set_candles_processed: processingResult.candlesProcessed,
         config_set_errors: processingResult.errors,
         config_set_duration_ms: processingResult.duration,
+        config_set_intervals_processed: processingResult.intervalsProcessed || 0,
+        config_set_missing_intervals_loaded: processingResult.missingIntervalsLoaded || 0,
         prehistoric_last_processed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -1099,7 +1163,7 @@ export class TradeEngineManager {
   //   each cycle runs back-to-back with a configurable pause (app_settings.cyclePauseMs,
   //   10-200ms, default 50ms). This removes the old "skip-when-busy" pattern that
   //   was causing the cycle time to climb to 4s+ and the engine to appear hung.
-  private startIndicationProcessor(_intervalSeconds: number = 1): void {
+  private startIndicationProcessor(_intervalSeconds: number = 1, runGeneration: number = this.runGeneration): void {
     // Counter variables for metrics tracking - simplified to avoid closure issues
     let cycleCount = 0
     let attemptedCycles = 0
@@ -1116,7 +1180,7 @@ export class TradeEngineManager {
     const connId = this.connectionId
 
     const scheduleNext = (wasProductive: boolean) => {
-      if (!this.isRunning) return
+      if (!this.isCurrentRun(runGeneration)) return
       // STABILITY: scheduleNext is the ONLY thing keeping this loop alive.
       // If `setTimeout` or the unregister call ever throws (stale handle,
       // weird runtime, etc.) we MUST still rearm — otherwise the engine
@@ -1167,7 +1231,7 @@ export class TradeEngineManager {
     void refreshPrehistoricDone()
 
     const tick = async () => {
-      if (!this.isRunning) return
+      if (!this.isCurrentRun(runGeneration)) return
       const startTime = Date.now()
       // Local abort flag — when true, the finally block will NOT schedule the next cycle.
       let aborted = false
@@ -1437,6 +1501,7 @@ export class TradeEngineManager {
     }
 
     // Kick off the first cycle immediately (0 ms delay).
+    if (!this.isCurrentRun(runGeneration)) return
     this.indicationTimer = setTimeout(tick, 0)
     registerEngineTimer(this.indicationTimer)
   }
@@ -1450,7 +1515,7 @@ export class TradeEngineManager {
    * calc is complete, idle cycles (0 strategies evaluated) back off
    * progressively up to 1s so the engine stops "spinning" on nothing.
    */
-  private startStrategyProcessor(_intervalSeconds: number = 1): void {
+  private startStrategyProcessor(_intervalSeconds: number = 1, runGeneration: number = this.runGeneration): void {
     let cycleCount = 0
     let totalDuration = 0
     let errorCount = 0
@@ -1472,7 +1537,7 @@ export class TradeEngineManager {
     void refreshPrehistoricDone()
 
     const scheduleNext = (wasProductive: boolean) => {
-      if (!this.isRunning) return
+      if (!this.isCurrentRun(runGeneration)) return
       // See indication scheduleNext for the full stability rationale.
       try {
         const base = getCyclePauseMsSync()
@@ -1503,7 +1568,7 @@ export class TradeEngineManager {
     }
 
     const tick = async () => {
-      if (!this.isRunning) return
+      if (!this.isCurrentRun(runGeneration)) return
       const startTime = Date.now()
       let producedStrategies = false
 
@@ -1702,6 +1767,7 @@ export class TradeEngineManager {
     }
 
     // Kick off the first cycle immediately.
+    if (!this.isCurrentRun(runGeneration)) return
     this.strategyTimer = setTimeout(tick, 0)
     registerEngineTimer(this.strategyTimer)
   }
@@ -1724,7 +1790,7 @@ export class TradeEngineManager {
    * Once prehistoric is done the loop applies adaptive idle backoff
    * (max 1s) across consecutive empty cycles.
    */
-  private startRealtimeProcessor(_intervalSeconds: number = 1): void {
+  private startRealtimeProcessor(_intervalSeconds: number = 1, runGeneration: number = this.runGeneration): void {
     let cycleCount = 0
     let gatedCycles = 0
     let totalDuration = 0
@@ -1751,7 +1817,7 @@ export class TradeEngineManager {
     void refreshPrehistoricDone()
 
     const scheduleNext = (outcome: "productive" | "empty" | "gated") => {
-      if (!this.isRunning) return
+      if (!this.isCurrentRun(runGeneration)) return
       // See indication scheduleNext for the full stability rationale.
       try {
         const base = getCyclePauseMsSync()
@@ -1787,7 +1853,7 @@ export class TradeEngineManager {
     }
 
     const tick = async () => {
-      if (!this.isRunning) return
+      if (!this.isCurrentRun(runGeneration)) return
       // Default outcome: "empty". Upgraded to "productive" when the
       // processor reports real work, or demoted to "gated" when the
       // prehistoric flag hasn't flipped yet.
@@ -1921,6 +1987,7 @@ export class TradeEngineManager {
     // report "gated" (prehistoric still running) and re-poll on
     // PREHISTORIC_WAIT_POLL_MS, or run a full cycle if prehistoric is
     // already complete.
+    if (!this.isCurrentRun(runGeneration)) return
     this.realtimeTimer = setTimeout(tick, 0)
     
     // Register timer for cleanup on module reload

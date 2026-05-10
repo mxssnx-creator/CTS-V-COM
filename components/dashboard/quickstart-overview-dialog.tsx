@@ -43,7 +43,7 @@ interface StatsResponse {
   // so the JSX below compiles and the older callers keep working.
   historic: {
     symbolsProcessed: number; symbolsTotal: number; candlesLoaded: number
-    indicatorsCalculated: number; cyclesCompleted: number; isComplete: boolean; progressPercent: number
+    indicatorsCalculated: number; strategiesCalculated?: number; cyclesCompleted: number; isComplete: boolean; progressPercent: number
     framesProcessed?: number
     timeframeSeconds?: number
     executedPositions?: number
@@ -371,22 +371,15 @@ export function QuickstartOverviewDialog() {
                 />
                 <StatCell label="Candles"     value={fmt(h?.candlesLoaded       || 0)} accent="text-sky-600 dark:text-sky-400" />
                 <StatCell label="Indicators"  value={fmt(h?.indicatorsCalculated|| 0)} accent="text-teal-600 dark:text-teal-400" />
-                {/* Preh Cycles → cycle×frame work magnitude (high number).
-                    Replaces the previous symbol-magnitude `cyclesCompleted`
-                    display with cycles × frames so operators can see real
-                    processing scale. Sub line shows the breakdown. */}
+                <StatCell label="Strategies"  value={fmt(h?.strategiesCalculated|| 0)} accent="text-purple-600 dark:text-purple-400" />
+                {/* Preh Cycles is the canonical processed-symbol/range cycle
+                    count. Frames are shown in the sub-line and are not
+                    multiplied by cycles because `framesProcessed` is already
+                    a cross-symbol interval total. */}
                 <StatCell
                   label="Preh Cycles"
-                  value={
-                    (h?.cyclesCompleted || 0) > 0 && (h?.framesProcessed || 0) > 0
-                      ? fmt((h?.cyclesCompleted || 0) * (h?.framesProcessed || 0))
-                      : fmt(h?.cyclesCompleted || 0)
-                  }
-                  sub={
-                    (h?.cyclesCompleted || 0) > 0 && (h?.framesProcessed || 0) > 0
-                      ? `${fmt(h?.cyclesCompleted || 0)}×${fmt(h?.framesProcessed || 0)}`
-                      : undefined
-                  }
+                  value={fmt(h?.cyclesCompleted || 0)}
+                  sub={(h?.framesProcessed || 0) > 0 ? `${fmt(h?.framesProcessed || 0)} frames` : undefined}
                   accent="text-indigo-600 dark:text-indigo-400"
                 />
               </div>
@@ -584,21 +577,15 @@ export function QuickstartOverviewDialog() {
                 <StatCell label="Symbols"      value={fmt(h?.symbolsProcessed    || 0)} accent="text-blue-600 dark:text-blue-400" />
                 <StatCell label="Candles"      value={fmt(h?.candlesLoaded       || 0)} accent="text-sky-600 dark:text-sky-400" />
                 <StatCell label="Indicators"   value={fmt(h?.indicatorsCalculated|| 0)} accent="text-teal-600 dark:text-teal-400" />
-                {/* Preh Cycles → cycle×frame work magnitude. See Overview
-                    tab comment above; same logic mirrored here so both
-                    surfaces tell the operator the same story. */}
+                <StatCell label="Strategies"   value={fmt(h?.strategiesCalculated|| 0)} accent="text-purple-600 dark:text-purple-400" />
+                {/* Preh Cycles is the canonical processed-symbol/range cycle
+                    count. Frames are shown in the sub-line and are not
+                    multiplied by cycles because `framesProcessed` is already
+                    a cross-symbol interval total. */}
                 <StatCell
                   label="Preh Cycles"
-                  value={
-                    (h?.cyclesCompleted || 0) > 0 && (h?.framesProcessed || 0) > 0
-                      ? fmt((h?.cyclesCompleted || 0) * (h?.framesProcessed || 0))
-                      : fmt(h?.cyclesCompleted || 0)
-                  }
-                  sub={
-                    (h?.cyclesCompleted || 0) > 0 && (h?.framesProcessed || 0) > 0
-                      ? `${fmt(h?.cyclesCompleted || 0)}×${fmt(h?.framesProcessed || 0)}`
-                      : undefined
-                  }
+                  value={fmt(h?.cyclesCompleted || 0)}
+                  sub={(h?.framesProcessed || 0) > 0 ? `${fmt(h?.framesProcessed || 0)} frames` : undefined}
                   accent="text-indigo-600 dark:text-indigo-400"
                 />
               </div>

@@ -1,5 +1,19 @@
 # Context
 
+## 2026-05-10 - Corrected Prehistoric Counts and Avg Real Position Stats
+- Persisted final prehistoric run totals (`strategy_positions`, `intervals_processed`, `missing_intervals`, indicators, candles, symbols) after parallel symbol processing so out-of-order per-symbol writes cannot leave partial/last-writer counts in the dashboard.
+- Updated `/api/connections/progression/[id]/stats` to read prehistoric indication, strategy, frame, and missing-frame counts from canonical/fallback sources and expose `historic.strategiesCalculated`.
+- Fixed Real-stage counter taxonomy so `strategies_real_evaluated` means Main Sets inspected and `strategies_real_total` means Real Sets produced.
+- Ensured Avg Real Pos has a deterministic fallback from Real-stage average positions-per-set when no open real-position samples exist yet, so prehistoric-only runs no longer render the tile as blank.
+- Removed incorrect `cycles × frames` UI multiplication; frames are already cross-symbol interval totals and cycles are shown separately with frames as context.
+
+## 2026-05-10 - Stabilized Engine Progress Lifecycle and Symbol-Scoped Stats
+- Added a monotonic trade-engine run generation token so indication, strategy, realtime, and background prehistoric loops can only re-arm while they belong to the current run. This prevents stale in-flight ticks from an old run scheduling duplicate processors after a fast stop/start or symbol-basket switch.
+- Centralized processor timer cleanup and global timer-registry unregistering before each new run, during stop, and during startup-error cleanup.
+- Cleared per-run active snapshot hashes (`indications_active:*`, `strategies_active:*`) on start/stop and filtered stats aggregation to the current connection symbol basket, preventing stale/switching symbols from leaking into active counts.
+- Limited immediate startup warm-up passes with the same bounded symbol concurrency used by steady-state processors to avoid unbounded parallel fan-out at startup.
+- Background prehistoric completion/error writes are now guarded by the run generation so an old run cannot overwrite the new run's state after restart.
+
 ## 2026-05-09 - Fixed Doubled Progression (Non-Unique Frame Counts)
 - **Root cause**: All THREE processors (indication, strategy, realtime) independently incremented `frames_processed` on every tick, causing multiplied/doubled counts when running concurrently at different cadences
 - **Impact**: Progression counters showed ~3x more frames than actual ticks, appearing unstable and non-unique

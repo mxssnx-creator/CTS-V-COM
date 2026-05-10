@@ -151,6 +151,7 @@ interface LiveStats {
   historicProgress: number
   historicCandles: number
   historicIndicators: number
+  historicStrategies: number
   // historic — frame/interval counters (big count for 1s timeframes)
   historicFrames: number
   historicFramesMissing: number
@@ -272,7 +273,7 @@ const EMPTY_MAIN_COORD: MainCoordination = {
 
 const EMPTY_STATS: LiveStats = {
   historicSymbols: 0, historicSymbolsTotal: 0, historicCycles: 0,
-  historicComplete: false, historicProgress: 0, historicCandles: 0, historicIndicators: 0,
+  historicComplete: false, historicProgress: 0, historicCandles: 0, historicIndicators: 0, historicStrategies: 0,
   historicFrames: 0, historicFramesMissing: 0, historicTimeframeSec: 1,
   historicAvgProfitFactor: 0, historicAvgProfitFactorCount: 0, executedPositions: 0,
   indicationCycles: 0, strategyCycles: 0, realtimeCycles: 0, indicationsTotal: 0,
@@ -486,6 +487,7 @@ export function QuickstartSection() {
         historicProgress:      s.historic?.progressPercent     || 0,
         historicCandles:       s.historic?.candlesLoaded       || 0,
         historicIndicators:    s.historic?.indicatorsCalculated || 0,
+        historicStrategies:    s.historic?.strategiesCalculated || 0,
         historicFrames:        s.historic?.framesProcessed     || 0,
         historicFramesMissing: s.historic?.framesMissingLoaded || 0,
         historicTimeframeSec:  s.historic?.timeframeSeconds    || 1,
@@ -1129,24 +1131,17 @@ export function QuickstartSection() {
             {stats.historicIndicators > 0 && (
               <MiniStat label="Indicators" value={fmt(stats.historicIndicators)} />
             )}
-            {/* P-Cycles tile reflects the cycle-frame work magnitude, not
-                symbol count. Value = cycles × frames (the high-magnitude
-                number the operator sees grow during prehistoric processing).
-                Falls back to plain `historicCycles` only when no frames
-                have been counted yet (very early in a run) so we never
-                display a misleading "0" for non-zero work. */}
+            {stats.historicStrategies > 0 && (
+              <MiniStat label="Strategies" value={fmt(stats.historicStrategies)} />
+            )}
+            {/* P-Cycles is the canonical prehistoric cycle count (one per
+                processed symbol/range). Frames are already a cross-symbol
+                interval total, so multiplying cycles × frames double-counted
+                historical progress. */}
             <MiniStat
               label="P-Cycles"
-              value={
-                stats.historicFrames > 0 && stats.historicCycles > 0
-                  ? fmt(stats.historicCycles * stats.historicFrames)
-                  : fmt(stats.historicCycles)
-              }
-              sub={
-                stats.historicFrames > 0 && stats.historicCycles > 0
-                  ? `${fmt(stats.historicCycles)}×${fmt(stats.historicFrames)}`
-                  : undefined
-              }
+              value={fmt(stats.historicCycles)}
+              sub={stats.historicFrames > 0 ? `${fmt(stats.historicFrames)} frames` : undefined}
             />
             {/* Base PF — average Profit Factor across ALL closed Base
                 pseudo positions in the prehistoric run, computed from
@@ -1385,6 +1380,9 @@ export function QuickstartSection() {
                     candle count. See note in the always-visible row above. */}
                 {stats.historicIndicators > 0 && (
                   <MiniStat label="Indicators" value={fmt(stats.historicIndicators)} />
+                )}
+                {stats.historicStrategies > 0 && (
+                  <MiniStat label="Strategies" value={fmt(stats.historicStrategies)} />
                 )}
                 {/* ── Spec-mandated Historic overview tiles ──────────────
                       • ExecPos — cumulative live exchange positions created.
