@@ -1289,8 +1289,13 @@ export class StrategyCoordinator {
         client.expire(`strategies:${this.connectionId}:real:evaluated`, 86400),
         client.expire(`strategies:${this.connectionId}:main:passed`, 86400),
       ]
-      if (mainSets.length > 0) writes.push(client.hincrby(redisKey, "strategies_real_total", mainSets.length))
-      if (realSets.length > 0) writes.push(client.hincrby(redisKey, "strategies_real_evaluated", realSets.length))
+      // Real-stage taxonomy:
+      //   strategies_real_evaluated = Main Sets inspected by Real
+      //   strategies_real_total     = Real Sets that passed and were produced
+      // The previous implementation had these reversed, which inflated
+      // "Overall" Real stats and hid true pass-through rates.
+      if (mainSets.length > 0) writes.push(client.hincrby(redisKey, "strategies_real_evaluated", mainSets.length))
+      if (realSets.length > 0) writes.push(client.hincrby(redisKey, "strategies_real_total", realSets.length))
 
       // ── ACTIVE-NOW snapshot for Real stage ──────────────────────────
       // Mirrors the Base/Main pattern. The dashboard reads this hash and

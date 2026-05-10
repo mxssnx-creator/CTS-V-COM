@@ -626,6 +626,17 @@ export class ConfigSetProcessor {
         last_run_candles: String(candlesProcessed),
         last_run_indication_results: String(totalIndicationResults),
         last_run_strategy_positions: String(totalStrategyPositions),
+        // Final canonical counters. Per-symbol workers also write these
+        // while processing, but those writes can complete out of order when
+        // symbols run in parallel. Overwrite once at the end with the exact
+        // run totals so dashboard prehistoric stats never regress or show
+        // last-writer-wins partial values.
+        symbols_processed: String(symbolsProcessed),
+        candles_loaded: String(candlesProcessed),
+        indicators_calculated: String(totalIndicationResults),
+        strategy_positions: String(totalStrategyPositions),
+        intervals_processed: String(totalIntervalsProcessed),
+        missing_intervals: String(missingIntervalsLoaded),
       })
       await client.expire(`prehistoric:${this.connectionId}`, 86400)
     } catch (err) {

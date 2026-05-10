@@ -154,6 +154,19 @@ export async function GET(
       symbolsFromArray,
       1
     )
+    const currentSymbolsRaw = Array.isArray((es as any).symbols)
+      ? (es as any).symbols
+      : Array.isArray((es as any).active_symbols)
+        ? (es as any).active_symbols
+        : typeof (es as any).active_symbols === "string"
+          ? (() => { try { const parsed = JSON.parse((es as any).active_symbols); return Array.isArray(parsed) ? parsed : [] } catch { return [] } })()
+          : []
+    const currentSymbolSet = new Set(
+      currentSymbolsRaw
+        .map((sym: unknown) => String(sym || "").trim().toUpperCase())
+        .filter(Boolean),
+    )
+
     const historicCandlesLoaded = pick(
       n(prehistoricHash.candles_loaded),
       n(progHash.prehistoric_candles_processed),
@@ -161,7 +174,23 @@ export async function GET(
     )
     const historicIndicatorsCalculated = pick(
       n(prehistoricHash.indicators_calculated),
+      n(progHash.prehistoric_indications_total),
       n(es.config_set_indication_results)
+    )
+    const historicStrategiesCalculated = pick(
+      n(prehistoricHash.strategy_positions),
+      n(progHash.prehistoric_strategies_total),
+      n(es.config_set_strategy_positions)
+    )
+    const historicFramesProcessed = pick(
+      n(prehistoricHash.intervals_processed),
+      n(progHash.prehistoric_intervals_processed),
+      n(es.config_set_intervals_processed)
+    )
+    const historicFramesMissingLoaded = pick(
+      n(prehistoricHash.missing_intervals),
+      n(progHash.prehistoric_missing_loaded),
+      n(es.config_set_missing_intervals_loaded)
     )
     const historicCyclesCompleted = pick(
       n(progHash.prehistoric_cycles_completed),
@@ -803,6 +832,8 @@ export async function GET(
           // symbols containing colons (none today, but future-proof) survive.
           const idx = field.lastIndexOf(":")
           if (idx <= 0) continue
+          const symbol = field.slice(0, idx).trim().toUpperCase()
+          if (currentSymbolSet.size > 0 && !currentSymbolSet.has(symbol)) continue
           const type = field.slice(idx + 1)
           const numVal = n(val)
           if (type in activeIndByType) {
@@ -818,6 +849,8 @@ export async function GET(
         for (const [field, val] of Object.entries(stratActiveHash)) {
           const idx = field.lastIndexOf(":")
           if (idx <= 0) continue
+          const symbol = field.slice(0, idx).trim().toUpperCase()
+          if (currentSymbolSet.size > 0 && !currentSymbolSet.has(symbol)) continue
           const stage = field.slice(idx + 1)
           const numVal = n(val)
           if (stage in activeStratByStage) {
@@ -1044,7 +1077,9 @@ export async function GET(
           ? weightedPER / weightSum
           : parseFloat(dh.avg_pos_eval_real    || progHash[`strategy_${stage}_avg_pos_eval_real`]    || "0")
         // Count of positions that contributed to avgPosEvalReal (only meaningful for Real stage)
-        const countPosEval      = n(dh.count_pos_eval || progHash[`strategy_${stage}_count_pos_eval`])
+        const countPosEval      = useCross
+          ? (stage === "real" ? symCreated : freshSymbols)
+          : n(dh.count_pos_eval || progHash[`strategy_${stage}_count_pos_eval`])
         // Drawdown time (avg minutes from strategy sets)
         const avgDrawdownTime   = useCross && weightSum > 0
           ? weightedDDT / weightSum
@@ -1110,6 +1145,20 @@ export async function GET(
         }
       })
     )
+
+    // Ensure the "Avg Real Pos" surface is never blank once Real-stage data
+    // exists. `realActivePosAverage` is the preferred unbounded running mean
+    // from currently-open validated Real positions. During prehistoric-only
+    // processing there may be Real Sets but no open `real:position:*` rows yet,
+    // so fall back to the Real stage's average positions-per-set snapshot.
+    if (realActivePosAverage <= 0) {
+      const realStageAvgPos = n(stratDetail.real?.avgPosPerSet)
+      const realStageSamples = n(stratDetail.real?.countPosEval || stratDetail.real?.createdSets)
+      if (realStageAvgPos > 0) {
+        realActivePosAverage = realStageAvgPos
+        realActivePosSamples = realStageSamples || 1
+      }
+    }
 
     // ── Opportunistic stale per-symbol field pruning ─────────────────
     // After aggregation, HDEL the per-symbol bundles older than 30 min.
@@ -1216,8 +1265,8 @@ export async function GET(
       rangeEnd:                prehistoricHash.range_end            || null,
       rangeDays:               n(prehistoricHash.range_days)        || 1,
       timeframeSeconds:        n(prehistoricHash.timeframe_seconds) || 1,
-      intervalsProcessed:      n(prehistoricHash.intervals_processed) || n(progHash.prehistoric_intervals_processed),
-      missingIntervalsLoaded:  n(prehistoricHash.missing_intervals)   || n(progHash.prehistoric_missing_loaded),
+      intervalsProcessed:      historicFramesProcessed,
+      missingIntervalsLoaded:  historicFramesMissingLoaded,
       currentSymbol:           prehistoricHash.current_symbol         || progHash.prehistoric_current_symbol || "",
       isComplete:              prehistoricHash.is_complete === "1",
       // Aggregate profit factor across every closed prehistoric position
@@ -1282,6 +1331,7 @@ export async function GET(
         symbolsTotal:           historicSymbolsTotal,
         candlesLoaded:          historicCandlesLoaded,
         indicatorsCalculated:   historicIndicatorsCalculated,
+        strategiesCalculated:   historicStrategiesCalculated,
         cyclesCompleted:        historicCyclesCompleted,
         isComplete:             historicIsComplete,
         progressPercent:        historicProgressPercent,
@@ -1291,8 +1341,8 @@ export async function GET(
         // stays small. The real "processed data units" count lives under
         // `framesProcessed` (= intervalsProcessed from the config-set
         // processor, one frame per timeframe tick across the range).
-        framesProcessed:        n(prehistoricMeta.intervalsProcessed),
-        framesMissingLoaded:    n(prehistoricMeta.missingIntervalsLoaded),
+        framesProcessed:        historicFramesProcessed,
+        framesMissingLoaded:    historicFramesMissingLoaded,
         timeframeSeconds:       n(prehistoricMeta.timeframeSeconds) || 1,
 
         // ── Historic profit factor + executed positions ────────────────
